@@ -6,7 +6,7 @@ Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs webowy do git-a
 Name:		cgit
 Version:	0.8.1
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://hjemli.net/git/cgit/snapshot/%{name}-%{version}.tar.bz2
@@ -51,6 +51,7 @@ htl zapisany jest na dysku dla kolejnych żądań.
 	CC="%{__cc}" \
 	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
 	LDFLAGS="%{rpmldflags}" \
+	LIBDIR=%{_libdir} \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_SCRIPT_PATH="%{cgibindir}" \
 	%{?with_verbose:V=1}
