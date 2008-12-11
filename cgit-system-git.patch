@@ -1,0 +1,39 @@
+diff -burN cgit-0.8.1.orig/Makefile cgit-0.8.1/Makefile
+--- cgit-0.8.1.orig/Makefile	2008-12-10 09:59:24.000000000 +0100
++++ cgit-0.8.1/Makefile	2008-12-10 10:03:03.000000000 +0100
+@@ -6,6 +6,7 @@
+ SHA1_HEADER = <openssl/sha.h>
+ GIT_VER = 1.6.0.2
+ GIT_URL = http://www.kernel.org/pub/software/scm/git/git-$(GIT_VER).tar.bz2
++LIBDIR = /usr/lib
+ 
+ #
+ # Let the user override the above settings.
+@@ -46,7 +47,7 @@
+ 	$(QUIET_CC)$(CC) -o $*.o -c $(CFLAGS) $<
+ 
+ 
+-EXTLIBS = git/libgit.a git/xdiff/lib.a -lz -lcrypto
++EXTLIBS = $(LIBDIR)/libgit.a $(LIBDIR)/libgit_xdiff.a -lz -lcrypto
+ OBJECTS =
+ OBJECTS += cache.o
+ OBJECTS += cgit.o
+@@ -97,17 +98,13 @@
+ 	CFLAGS += -DNO_ICONV
+ endif
+ 
+-cgit: $(OBJECTS) libgit
++cgit: $(OBJECTS)
+ 	$(QUIET_CC)$(CC) $(CFLAGS) $(LDFLAGS) -o cgit $(OBJECTS) $(EXTLIBS)
+ 
+ cgit.o: VERSION
+ 
+ -include $(OBJECTS:.o=.d)
+ 
+-libgit:
+-	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) libgit.a
+-	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) xdiff/lib.a
+-
+ test: all
+ 	$(QUIET_SUBDIR0)tests $(QUIET_SUBDIR1) all
+ 
