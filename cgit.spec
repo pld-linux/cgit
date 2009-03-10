@@ -3,7 +3,7 @@
 %bcond_with	verbose		# verbose build (V=1)
 #
 Summary:	cgit - a fast webinterface to git
-Summary(pl.UTF-8):	cgit - szybki interfejs webowy do git-a
+Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
 Version:	0.8.2
 Release:	1
@@ -29,17 +29,17 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %description
 Cgit is a CGI application implemented in C: it's basically (yet)
-another git command, used to generate html. Cgit is not forking: all
+another git command, used to generate HTML. Cgit is not forking: all
 git operations are performed by linking with libgit.a. It uses a
-built-in cache: the generated html is stored on disk for the benefit
+built-in cache: the generated HTML is stored on disk for the benefit
 of later requests.
 
 %description -l pl.UTF-8
-Cgit to: napisana w C aplikacja CGI - zasadniczo jest to (kolejny)
-interfejs do git-a, generujący kod html. Cgit jest aplikacją
+Cgit to napisana w C aplikacja CGI - zasadniczo jest to (kolejny)
+interfejs do gita, generujący kod HTML. Cgit jest aplikacją
 nieforkującą - wszystkie operacje na repozytoriach wykonywane są z
 użyciem biblioteki. Aplikacja ta korzysta z cache - wygenerowany kod
-htl zapisany jest na dysku dla kolejnych żądań.
+HTML zapisany jest na dysku dla kolejnych żądań.
 
 %prep
 %setup -q
