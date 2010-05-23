@@ -6,7 +6,7 @@ Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
 Version:	0.8.3.1
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://hjemli.net/git/cgit/snapshot/%{name}-%{version}.tar.bz2
@@ -19,6 +19,7 @@ Patch1:		%{name}-override-cflags.patch
 URL:		http://hjemli.net/git/cgit
 BuildRequires:	git-core-devel >= 1.7.1-2
 BuildRequires:	openssl-devel
+BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
