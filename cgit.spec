@@ -63,12 +63,9 @@ rm -rf $RPM_BUILD_ROOT
 %{__make} install \
 	DESTDIR=$RPM_BUILD_ROOT \
 	CGIT_CONFIG="%{webappdir}/%{webapp.conf}" \
+	CGIT_DATA_PATH="%{appdir}" \
 	CGIT_SCRIPT_PATH="%{cgibindir}" \
 	%{?with_verbose:V=1}
-
-# css and logo
-install -d $RPM_BUILD_ROOT%{_datadir}/%{name}
-mv $RPM_BUILD_ROOT%{cgibindir}/%{name}.{css,png} $RPM_BUILD_ROOT%{appdir}
 
 # cache
 install -d $RPM_BUILD_ROOT/var/cache/cgit
