@@ -6,14 +6,15 @@ Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
 Version:	0.8.3.4
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://hjemli.net/git/cgit/snapshot/%{name}-%{version}.tar.bz2
 # Source0-md5:	712e4d3013d754aa5752e0101188cf32
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
-Source3:	%{name}-httpd.conf
+Source3:	%{name}-apache.conf
+Source4:	%{name}-httpd.conf
 Patch0:		%{name}-system-git.patch
 Patch1:		%{name}-override-cflags.patch
 URL:		http://hjemli.net/git/cgit
@@ -21,6 +22,7 @@ BuildRequires:	git-core-devel >= 1.7.3
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
+Conflicts:	apache-base < 2.4.0-1
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %define		webapp		cgit
@@ -75,7 +77,7 @@ install -d $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE1} $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE2} $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE3} $RPM_BUILD_ROOT%{webappdir}/apache.conf
-install %{SOURCE3} $RPM_BUILD_ROOT%{webappdir}/httpd.conf
+install %{SOURCE4} $RPM_BUILD_ROOT%{webappdir}/httpd.conf
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -86,10 +88,10 @@ rm -rf $RPM_BUILD_ROOT
 %triggerun -- apache1 < 1.3.37-3, apache1-base
 %webapp_unregister apache %{webapp}
 
-%triggerin -- apache < 2.2.0, apache-base
+%triggerin -- apache-base
 %webapp_register httpd %{webapp}
 
-%triggerun -- apache < 2.2.0, apache-base
+%triggerun -- apache-base
 %webapp_unregister httpd %{webapp}
 
 %files
