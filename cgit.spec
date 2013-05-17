@@ -5,20 +5,22 @@
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.8.3.4
-Release:	2
+Version:	0.9.1
+Release:	1
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://hjemli.net/git/cgit/snapshot/%{name}-%{version}.tar.bz2
-# Source0-md5:	712e4d3013d754aa5752e0101188cf32
+# Source0-md5:	78403e6a15a61bb06cb2b8447079139a
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Source4:	%{name}-httpd.conf
 Patch0:		%{name}-system-git.patch
 Patch1:		%{name}-override-cflags.patch
+Patch2:		notes.patch
+Patch100:	git.patch
 URL:		http://hjemli.net/git/cgit
-BuildRequires:	git-core-devel >= 1.7.3
+BuildRequires:	git-core-devel >= 1.8.0
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
@@ -46,8 +48,10 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 
 %prep
 %setup -q
+%patch100 -p1
 %patch0 -p1
 %patch1 -p1
+%patch2 -p1
 
 %build
 %{__make} \
@@ -64,6 +68,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__make} install \
 	DESTDIR=$RPM_BUILD_ROOT \
+	LIBDIR=%{_libdir} \
 	CGIT_CONFIG="%{webappdir}/%{webapp.conf}" \
 	CGIT_DATA_PATH="%{appdir}" \
 	CGIT_SCRIPT_PATH="%{cgibindir}" \
@@ -105,3 +110,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{cgibindir}/cgit.cgi
 %attr(770,root,http) /var/cache/cgit
 %{appdir}
+%dir %{_prefix}/lib/cgit
+%dir %{_prefix}/lib/cgit/filters
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh

@@ -1,22 +1,24 @@
 diff -burN cgit-0.8.1.orig/Makefile cgit-0.8.1/Makefile
 --- cgit-0.8.1.orig/Makefile	2008-12-10 09:59:24.000000000 +0100
 +++ cgit-0.8.1/Makefile	2008-12-11 00:02:15.000000000 +0100
-@@ -86,12 +86,12 @@
- -include VERSION
+@@ -86,13 +86,13 @@
+ endif
  
- 
--CFLAGS += -g -Wall -Igit
+ LDFLAGS ?=
+-CFLAGS ?= -g -Wall
+-CFLAGS += -Igit
 -CFLAGS += -DSHA1_HEADER='$(SHA1_HEADER)'
 -CFLAGS += -DCGIT_VERSION='"$(CGIT_VERSION)"'
 -CFLAGS += -DCGIT_CONFIG='"$(CGIT_CONFIG)"'
 -CFLAGS += -DCGIT_SCRIPT_NAME='"$(CGIT_SCRIPT_NAME)"'
 -CFLAGS += -DCGIT_CACHE_ROOT='"$(CACHE_ROOT)"'
-+override CFLAGS += -g -Wall -Igit
++override CFLAGS ?= -g -Wall
++override CFLAGS += -Igit
 +override CFLAGS += -DSHA1_HEADER='$(SHA1_HEADER)'
 +override CFLAGS += -DCGIT_VERSION='"$(CGIT_VERSION)"'
 +override CFLAGS += -DCGIT_CONFIG='"$(CGIT_CONFIG)"'
 +override CFLAGS += -DCGIT_SCRIPT_NAME='"$(CGIT_SCRIPT_NAME)"'
 +override CFLAGS += -DCGIT_CACHE_ROOT='"$(CACHE_ROOT)"'
  
- ifdef NO_ICONV
- 	CFLAGS += -DNO_ICONV
+ ifeq ($(uname_O),Cygwin)
+ 	NO_STRCASESTR = YesPlease

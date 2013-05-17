@@ -1,0 +1,2151 @@
+diff --git a/Makefile b/Makefile
+index bbce29d..1127961 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,3 +1,5 @@
++all::
++
+ CGIT_VERSION = v0.9.1
+ CGIT_SCRIPT_NAME = cgit.cgi
+ CGIT_SCRIPT_PATH = /var/www/htdocs/cgit
+@@ -12,8 +14,8 @@ htmldir = $(docdir)
+ pdfdir = $(docdir)
+ mandir = $(prefix)/share/man
+ SHA1_HEADER = <openssl/sha.h>
+-GIT_VER = 1.7.4
+-GIT_URL = https://github.com/git/git/archive/v$(GIT_VER).tar.gz
++GIT_VER = 1.7.12.4
++GIT_URL = https://git-core.googlecode.com/files/git-$(GIT_VER).tar.gz
+ INSTALL = install
+ MAN5_TXT = $(wildcard *.5.txt)
+ MAN_TXT  = $(MAN5_TXT)
+@@ -40,22 +42,14 @@ DOC_PDF  = $(patsubst %.txt,%.pdf,$(MAN_TXT))
+ # Platform specific tweaks
+ #
+ 
++VERSION: force-version
++	@./gen-version.sh "$(CGIT_VERSION)"
++-include VERSION
++
+ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+ uname_O := $(shell sh -c 'uname -o 2>/dev/null || echo not')
+ uname_R := $(shell sh -c 'uname -r 2>/dev/null || echo not')
+ 
+-ifeq ($(uname_O),Cygwin)
+-	NO_STRCASESTR = YesPlease
+-	NEEDS_LIBICONV = YesPlease
+-endif
+-
+-ifeq ($(uname_S),$(filter $(uname_S),FreeBSD OpenBSD))
+-	# Apparantly libiconv is installed in /usr/local on BSD
+-	LDFLAGS ?= -L/usr/local/lib
+-	CFLAGS ?= -I/usr/local/include
+-	NEEDS_LIBICONV = yes
+-endif
+-
+ #
+ # Let the user override the above settings.
+ #
+@@ -76,30 +70,62 @@ endif
+ 
+ ifndef V
+ 	QUIET_CC       = @echo '   ' CC $@;
+-	QUIET_MM       = @echo '   ' MM $@;
++	QUIET_LINK     = @echo '   ' LINK $@;
+ 	QUIET_SUBDIR0  = +@subdir=
+ 	QUIET_SUBDIR1  = ;$(NO_SUBDIR) echo '   ' SUBDIR $$subdir; \
+ 			 $(MAKE) $(PRINT_DIR) -C $$subdir
+ 	QUIET_TAGS     = @echo '   ' TAGS $@;
++	export V
+ endif
+ 
+-#
+-# Define a pattern rule for automatic dependency building
+-#
+-%.d: %.c
+-	$(QUIET_MM)$(CC) $(CFLAGS) -MM -MP $< | sed -e 's/\($*\)\.o:/\1.o $@:/g' >$@
++LDFLAGS ?=
++CFLAGS ?= -g -Wall
++CFLAGS += -Igit
++CFLAGS += -DSHA1_HEADER='$(SHA1_HEADER)'
++CFLAGS += -DCGIT_VERSION='"$(CGIT_VERSION)"'
++CFLAGS += -DCGIT_CONFIG='"$(CGIT_CONFIG)"'
++CFLAGS += -DCGIT_SCRIPT_NAME='"$(CGIT_SCRIPT_NAME)"'
++CFLAGS += -DCGIT_CACHE_ROOT='"$(CACHE_ROOT)"'
+ 
+-#
+-# Define a pattern rule for silent object building
+-#
+-%.o: %.c
+-	$(QUIET_CC)$(CC) -o $*.o -c $(CFLAGS) $<
++ifeq ($(uname_O),Cygwin)
++	NO_STRCASESTR = YesPlease
++	NEEDS_LIBICONV = YesPlease
++endif
+ 
++ifeq ($(uname_S),$(filter $(uname_S),FreeBSD OpenBSD))
++	# Apparantly libiconv is installed in /usr/local on BSD
++	LDFLAGS += -L/usr/local/lib
++	CFLAGS += -I/usr/local/include
++	NEEDS_LIBICONV = yes
++endif
+ 
+-EXTLIBS = git/libgit.a git/xdiff/lib.a -lz -lpthread
++GIT_OPTIONS = prefix=/usr NO_GETTEXT=1
+ OBJECTS =
+-OBJECTS += cache.o
++
++ifdef NO_ICONV
++	CFLAGS += -DNO_ICONV
++endif
++ifdef NO_STRCASESTR
++	CFLAGS += -DNO_STRCASESTR
++endif
++ifdef NO_C99_FORMAT
++	CFLAGS += -DNO_C99_FORMAT
++endif
++ifdef NO_OPENSSL
++	CFLAGS += -DNO_OPENSSL
++	GIT_OPTIONS += NO_OPENSSL=1
++else
++	LDLIBS += -lcrypto
++endif
++
++ifdef NEEDS_LIBICONV
++	LDLIBS += -liconv
++endif
++
++LDLIBS += git/libgit.a git/xdiff/lib.a -lz -lpthread
++
+ OBJECTS += cgit.o
++OBJECTS += cache.o
+ OBJECTS += cmd.o
+ OBJECTS += configfile.o
+ OBJECTS += html.o
+@@ -125,55 +151,30 @@ OBJECTS += ui-tag.o
+ OBJECTS += ui-tree.o
+ OBJECTS += vector.o
+ 
+-ifdef NEEDS_LIBICONV
+-	EXTLIBS += -liconv
+-endif
+-
+-
+-.PHONY: all libgit test install uninstall clean force-version get-git \
+-	doc clean-doc install-doc install-man install-html install-pdf \
+-	uninstall-doc uninstall-man uninstall-html uninstall-pdf tags
++dep_files := $(foreach f,$(OBJECTS),$(dir $f).deps/$(notdir $f).d)
++dep_dirs := $(addsuffix .deps,$(sort $(dir $OBJECTS)))
+ 
+-all: cgit
++$(dep_dirs):
++	@mkdir -p $@
+ 
+-VERSION: force-version
+-	@./gen-version.sh "$(CGIT_VERSION)"
+--include VERSION
++missing_dep_dirs := $(filter-out $(wildcard $(dep_dirs)),$(dep_dirs))
++dep_file = $(dir $@).deps/$(notdir $@).d
++dep_args = -MF $(dep_file) -MMD -MP
+ 
++.SUFFIXES:
+ 
+-CFLAGS += -g -Wall -Igit
+-CFLAGS += -DSHA1_HEADER='$(SHA1_HEADER)'
+-CFLAGS += -DCGIT_VERSION='"$(CGIT_VERSION)"'
+-CFLAGS += -DCGIT_CONFIG='"$(CGIT_CONFIG)"'
+-CFLAGS += -DCGIT_SCRIPT_NAME='"$(CGIT_SCRIPT_NAME)"'
+-CFLAGS += -DCGIT_CACHE_ROOT='"$(CACHE_ROOT)"'
+-
+-GIT_OPTIONS = prefix=/usr
++$(OBJECTS): %.o: %.c $(missing_dep_dirs)
++	$(QUIET_CC)$(CC) -o $*.o -c $(dep_args) $(CFLAGS) $<
+ 
+-ifdef NO_ICONV
+-	CFLAGS += -DNO_ICONV
++dep_files_present := $(wildcard $(dep_files))
++ifneq ($(dep_files_present),)
++include $(dep_files_present)
+ endif
+-ifdef NO_STRCASESTR
+-	CFLAGS += -DNO_STRCASESTR
+-endif
+-ifdef NO_C99_FORMAT
+-	CFLAGS += -DNO_C99_FORMAT
+-endif
+-ifdef NO_OPENSSL
+-	CFLAGS += -DNO_OPENSSL
+-	GIT_OPTIONS += NO_OPENSSL=1
+-else
+-	EXTLIBS += -lcrypto
+-endif
+-
+-cgit: $(OBJECTS) libgit
+-	$(QUIET_CC)$(CC) $(CFLAGS) $(LDFLAGS) -o cgit $(OBJECTS) $(EXTLIBS)
+ 
+-cgit.o: VERSION
++all:: cgit
+ 
+-ifneq "$(MAKECMDGOALS)" "clean"
+-  -include $(OBJECTS:.o=.d)
+-endif
++cgit: VERSION $(OBJECTS) libgit
++	$(QUIET_LINK)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS)
+ 
+ libgit:
+ 	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 $(GIT_OPTIONS) libgit.a
+@@ -243,13 +244,24 @@ $(DOC_PDF): %.pdf : %.txt
+ 	a2x -f pdf cgitrc.5.txt
+ 
+ clean: clean-doc
+-	rm -f cgit VERSION *.o *.d tags
++	$(RM) cgit VERSION *.o tags
++	$(RM) -r .deps
++
++cleanall: clean
++	$(MAKE) -C git clean
+ 
+ clean-doc:
+-	rm -f cgitrc.5 cgitrc.5.html cgitrc.5.pdf cgitrc.5.xml cgitrc.5.fo
++	$(RM) cgitrc.5 cgitrc.5.html cgitrc.5.pdf cgitrc.5.xml cgitrc.5.fo
+ 
+ get-git:
+ 	curl -L $(GIT_URL) | tar -xzf - && rm -rf git && mv git-$(GIT_VER) git
+ 
+ tags:
+ 	$(QUIET_TAGS)find . -name '*.[ch]' | xargs ctags
++
++.PHONY: all cgit get-git libgit force-version
++.PHONY: clean clean-doc cleanall
++.PHONY: doc doc-html doc-man doc-pdf
++.PHONY: install install-doc install-html install-man install-pdf
++.PHONY: tags test
++.PHONY: uninstall uninstall-doc uninstall-html uninstall-man uninstall-pdf
+diff --git a/cache.c b/cache.c
+index d7a8d5a..47cdcb4 100644
+--- a/cache.c
++++ b/cache.c
+@@ -105,7 +105,7 @@ static int is_expired(struct cache_slot *slot)
+ 	if (slot->ttl < 0)
+ 		return 0;
+ 	else
+-		return slot->cache_st.st_mtime + slot->ttl*60 < time(NULL);
++		return slot->cache_st.st_mtime + slot->ttl * 60 < time(NULL);
+ }
+ 
+ /* Check if the slot has been modified since we opened it.
+@@ -141,8 +141,8 @@ static int close_lock(struct cache_slot *slot)
+  */
+ static int lock_slot(struct cache_slot *slot)
+ {
+-	slot->lock_fd = open(slot->lock_name, O_RDWR|O_CREAT|O_EXCL,
+-			     S_IRUSR|S_IWUSR);
++	slot->lock_fd = open(slot->lock_name, O_RDWR | O_CREAT | O_EXCL,
++			     S_IRUSR | S_IWUSR);
+ 	if (slot->lock_fd == -1)
+ 		return errno;
+ 	if (xwrite(slot->lock_fd, slot->key, slot->keylen + 1) < 0)
+@@ -214,7 +214,7 @@ unsigned long hash_str(const char *str)
+ 	if (!s)
+ 		return h;
+ 
+-	while(*s) {
++	while (*s) {
+ 		h *= FNV_PRIME;
+ 		h ^= *s++;
+ 	}
+@@ -342,7 +342,7 @@ int cache_process(int size, const char *path, const char *key, int ttl,
+ 	strcpy(filename, path);
+ 	if (filename[len - 1] != '/')
+ 		filename[len++] = '/';
+-	for(i = 0; i < 8; i++) {
++	for (i = 0; i < 8; i++) {
+ 		sprintf(filename + len++, "%x",
+ 			(unsigned char)(hash & 0xf));
+ 		hash >>= 4;
+@@ -407,7 +407,7 @@ int cache_ls(const char *path)
+ 		*name = '\0';
+ 	}
+ 	slot.cache_name = fullname;
+-	while((ent = readdir(dir)) != NULL) {
++	while ((ent = readdir(dir)) != NULL) {
+ 		if (strlen(ent->d_name) != 8)
+ 			continue;
+ 		strcpy(name, ent->d_name);
+diff --git a/cgit.c b/cgit.c
+index a97ed69..2ccf864 100644
+--- a/cgit.c
++++ b/cgit.c
+@@ -172,6 +172,8 @@ void config_cb(const char *name, const char *value)
+ 		ctx.cfg.enable_http_clone = atoi(value);
+ 	else if (!strcmp(name, "enable-index-links"))
+ 		ctx.cfg.enable_index_links = atoi(value);
++	else if (!strcmp(name, "enable-index-owner"))
++		ctx.cfg.enable_index_owner = atoi(value);
+ 	else if (!strcmp(name, "enable-commit-graph"))
+ 		ctx.cfg.enable_commit_graph = atoi(value);
+ 	else if (!strcmp(name, "enable-log-filecount"))
+@@ -313,7 +315,7 @@ static void querystring_cb(const char *name, const char *value)
+ 		ctx.qry.name = xstrdup(value);
+ 	} else if (!strcmp(name, "mimetype")) {
+ 		ctx.qry.mimetype = xstrdup(value);
+-	} else if (!strcmp(name, "s")){
++	} else if (!strcmp(name, "s")) {
+ 		ctx.qry.sort = xstrdup(value);
+ 	} else if (!strcmp(name, "showmsg")) {
+ 		ctx.qry.showmsg = atoi(value);
+@@ -354,6 +356,7 @@ static void prepare_context(struct cgit_context *ctx)
+ 	ctx->cfg.logo = "/cgit.png";
+ 	ctx->cfg.local_time = 0;
+ 	ctx->cfg.enable_http_clone = 1;
++	ctx->cfg.enable_index_owner = 1;
+ 	ctx->cfg.enable_tree_linenumbers = 1;
+ 	ctx->cfg.enable_git_config = 0;
+ 	ctx->cfg.max_repo_count = 50;
+@@ -442,12 +445,12 @@ char *find_default_branch(struct cgit_repo *repo)
+ 	return ref;
+ }
+ 
+-static char *guess_defbranch(const char *repo_path)
++static char *guess_defbranch(void)
+ {
+ 	const char *ref;
+ 	unsigned char sha1[20];
+ 
+-	ref = resolve_ref("HEAD", sha1, 0, NULL);
++	ref = resolve_ref_unsafe("HEAD", sha1, 0, NULL);
+ 	if (!ref || prefixcmp(ref, "refs/heads/"))
+ 		return "master";
+ 	return xstrdup(ref + 11);
+@@ -480,7 +483,7 @@ static int prepare_repo_cmd(struct cgit_context *ctx)
+ 	ctx->page.title = fmt("%s - %s", ctx->repo->name, ctx->repo->desc);
+ 
+ 	if (!ctx->repo->defbranch)
+-		ctx->repo->defbranch = guess_defbranch(ctx->repo->path);
++		ctx->repo->defbranch = guess_defbranch();
+ 
+ 	if (!ctx->qry.head) {
+ 		ctx->qry.nohead = 1;
+@@ -650,7 +653,7 @@ void print_repolist(FILE *f, struct cgit_repolist *list, int start)
+ {
+ 	int i;
+ 
+-	for(i = start; i < list->count; i++)
++	for (i = start; i < list->count; i++)
+ 		print_repo(f, &list->repos[i]);
+ }
+ 
+@@ -738,7 +741,7 @@ static void cgit_parse_args(int argc, const char **argv)
+ 
+ 	for (i = 1; i < argc; i++) {
+ 		if (!strncmp(argv[i], "--cache=", 8)) {
+-			ctx.cfg.cache_root = xstrdup(argv[i]+8);
++			ctx.cfg.cache_root = xstrdup(argv[i] + 8);
+ 		}
+ 		if (!strcmp(argv[i], "--nocache")) {
+ 			ctx.cfg.nocache = 1;
+@@ -747,24 +750,24 @@ static void cgit_parse_args(int argc, const char **argv)
+ 			ctx.env.no_http = "1";
+ 		}
+ 		if (!strncmp(argv[i], "--query=", 8)) {
+-			ctx.qry.raw = xstrdup(argv[i]+8);
++			ctx.qry.raw = xstrdup(argv[i] + 8);
+ 		}
+ 		if (!strncmp(argv[i], "--repo=", 7)) {
+-			ctx.qry.repo = xstrdup(argv[i]+7);
++			ctx.qry.repo = xstrdup(argv[i] + 7);
+ 		}
+ 		if (!strncmp(argv[i], "--page=", 7)) {
+-			ctx.qry.page = xstrdup(argv[i]+7);
++			ctx.qry.page = xstrdup(argv[i] + 7);
+ 		}
+ 		if (!strncmp(argv[i], "--head=", 7)) {
+-			ctx.qry.head = xstrdup(argv[i]+7);
++			ctx.qry.head = xstrdup(argv[i] + 7);
+ 			ctx.qry.has_symref = 1;
+ 		}
+ 		if (!strncmp(argv[i], "--sha1=", 7)) {
+-			ctx.qry.sha1 = xstrdup(argv[i]+7);
++			ctx.qry.sha1 = xstrdup(argv[i] + 7);
+ 			ctx.qry.has_sha1 = 1;
+ 		}
+ 		if (!strncmp(argv[i], "--ofs=", 6)) {
+-			ctx.qry.ofs = atoi(argv[i]+6);
++			ctx.qry.ofs = atoi(argv[i] + 6);
+ 		}
+ 		if (!strncmp(argv[i], "--scan-tree=", 12) ||
+ 		    !strncmp(argv[i], "--scan-path=", 12)) {
+@@ -831,7 +834,7 @@ int main(int argc, const char **argv)
+ 		ctx.cfg.virtual_root = trim_end(ctx.cfg.script_name, '/');
+ 		if (!ctx.cfg.virtual_root)
+ 			ctx.cfg.virtual_root = "";
+-        }
++	}
+ 
+ 	/* If no url parameter is specified on the querystring, lets
+ 	 * use PATH_INFO as url. This allows cgit to work with virtual
+@@ -853,7 +856,7 @@ int main(int argc, const char **argv)
+ 	}
+ 
+ 	ttl = calc_ttl();
+-	ctx.page.expires += ttl*60;
++	ctx.page.expires += ttl * 60;
+ 	if (ctx.env.request_method && !strcmp(ctx.env.request_method, "HEAD"))
+ 		ctx.cfg.nocache = 1;
+ 	if (ctx.cfg.nocache)
+diff --git a/cgit.h b/cgit.h
+index 7a99135..c655bd8 100644
+--- a/cgit.h
++++ b/cgit.h
+@@ -11,6 +11,7 @@
+ #include <tag.h>
+ #include <diff.h>
+ #include <diffcore.h>
++#include <argv-array.h>
+ #include <refs.h>
+ #include <revision.h>
+ #include <log-tree.h>
+@@ -203,6 +204,7 @@ struct cgit_config {
+ 	int enable_filter_overrides;
+ 	int enable_http_clone;
+ 	int enable_index_links;
++	int enable_index_owner;
+ 	int enable_commit_graph;
+ 	int enable_log_filecount;
+ 	int enable_log_linecount;
+@@ -273,6 +275,8 @@ struct cgit_context {
+ 	struct cgit_page page;
+ };
+ 
++typedef int (*write_archive_fn_t)(const char *, const char *);
++
+ struct cgit_snapshot_format {
+ 	const char *suffix;
+ 	const char *mimetype;
+diff --git a/cgitrc.5.txt b/cgitrc.5.txt
+index 95a1049..4d27d9f 100644
+--- a/cgitrc.5.txt
++++ b/cgitrc.5.txt
+@@ -120,6 +120,10 @@ enable-index-links::
+ 	each repo in the repository index (specifically, to the "summary",
+ 	"commit" and "tree" pages). Default value: "0".
+ 
++enable-index-owner::
++	Flag which, when set to "1", will make cgit display the owner of
++	each repo in the repository index. Default value: "1".
++
+ enable-log-filecount::
+ 	Flag which, when set to "1", will make cgit print the number of
+ 	modified files for each commit on the repository log page. Default
+@@ -244,8 +248,8 @@ mimetype-file::
+ 	Specifies the file to use for automatic mimetype lookup. If specified
+ 	then this field is used as a fallback when no "mimetype.<ext>" match is
+ 	found. If unspecified then no such lookup is performed. The typical file
+-	to use on a Linux system is /etc/mime.types. Default value: none. See
+-	also: "mimetype.<ext>".	The format of the file must comply to:
++	to use on a Linux system is /etc/mime.types. The format of the file must
++	comply to:
+ 	- a comment line is an empty line or a line starting with a hash (#),
+ 	  optionally preceded by whitespace
+ 	- a non-comment line starts with the mimetype (like image/png), followed
+diff --git a/cmd.c b/cmd.c
+index 899e913..198bf2f 100644
+--- a/cmd.c
++++ b/cmd.c
+@@ -166,7 +166,7 @@ struct cgit_cmd *cgit_get_cmd(struct cgit_context *ctx)
+ 			ctx->qry.page = "repolist";
+ 	}
+ 
+-	for(i = 0; i < sizeof(cmds)/sizeof(*cmds); i++)
++	for (i = 0; i < sizeof(cmds)/sizeof(*cmds); i++)
+ 		if (!strcmp(ctx->qry.page, cmds[i].name))
+ 			return &cmds[i];
+ 	return NULL;
+diff --git a/configfile.c b/configfile.c
+index 4908058..3fa217f 100644
+--- a/configfile.c
++++ b/configfile.c
+@@ -13,9 +13,9 @@
+ int next_char(FILE *f)
+ {
+ 	int c = fgetc(f);
+-	if (c=='\r') {
++	if (c == '\r') {
+ 		c = fgetc(f);
+-		if (c!='\n') {
++		if (c != '\n') {
+ 			ungetc(c, f);
+ 			c = '\r';
+ 		}
+@@ -27,7 +27,7 @@ void skip_line(FILE *f)
+ {
+ 	int c;
+ 
+-	while((c=next_char(f)) && c!='\n' && c!=EOF)
++	while ((c = next_char(f)) && c != '\n' && c != EOF)
+ 		;
+ }
+ 
+@@ -36,31 +36,31 @@ int read_config_line(FILE *f, char *line, const char **value, int bufsize)
+ 	int i = 0, isname = 0;
+ 
+ 	*value = NULL;
+-	while(i<bufsize-1) {
++	while (i < bufsize - 1) {
+ 		int c = next_char(f);
+-		if (!isname && (c=='#' || c==';')) {
++		if (!isname && (c == '#' || c == ';')) {
+ 			skip_line(f);
+ 			continue;
+ 		}
+ 		if (!isname && isspace(c))
+ 			continue;
+ 
+-		if (c=='=' && !*value) {
++		if (c == '=' && !*value) {
+ 			line[i] = 0;
+-			*value = &line[i+1];
+-		} else if (c=='\n' && !isname) {
++			*value = &line[i + 1];
++		} else if (c == '\n' && !isname) {
+ 			i = 0;
+ 			continue;
+-		} else if (c=='\n' || c==EOF) {
++		} else if (c == '\n' || c == EOF) {
+ 			line[i] = 0;
+ 			break;
+ 		} else {
+-			line[i]=c;
++			line[i] = c;
+ 		}
+ 		isname = 1;
+ 		i++;
+ 	}
+-	line[i+1] = 0;
++	line[i + 1] = 0;
+ 	return i;
+ }
+ 
+@@ -78,7 +78,7 @@ int parse_configfile(const char *filename, configfile_value_fn fn)
+ 	if (!(f = fopen(filename, "r")))
+ 		return -1;
+ 	nesting++;
+-	while((len = read_config_line(f, line, &value, sizeof(line))) > 0)
++	while ((len = read_config_line(f, line, &value, sizeof(line))) > 0)
+ 		fn(line, value);
+ 	nesting--;
+ 	fclose(f);
+diff --git a/html.c b/html.c
+index 8f6e4f6..90cc1c0 100644
+--- a/html.c
++++ b/html.c
+@@ -54,7 +54,7 @@ char *fmt(const char *format, ...)
+ 	va_start(args, format);
+ 	len = vsnprintf(buf[bufidx], sizeof(buf[bufidx]), format, args);
+ 	va_end(args);
+-	if (len>sizeof(buf[bufidx])) {
++	if (len > sizeof(buf[bufidx])) {
+ 		fprintf(stderr, "[html.c] string truncated: %s\n", format);
+ 		exit(1);
+ 	}
+@@ -92,93 +92,93 @@ void html_status(int code, const char *msg, int more_headers)
+ void html_txt(const char *txt)
+ {
+ 	const char *t = txt;
+-	while(t && *t){
++	while (t && *t) {
+ 		int c = *t;
+-		if (c=='<' || c=='>' || c=='&') {
++		if (c == '<' || c == '>' || c == '&') {
+ 			html_raw(txt, t - txt);
+-			if (c=='>')
++			if (c == '>')
+ 				html("&gt;");
+-			else if (c=='<')
++			else if (c == '<')
+ 				html("&lt;");
+-			else if (c=='&')
++			else if (c == '&')
+ 				html("&amp;");
+-			txt = t+1;
++			txt = t + 1;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		html(txt);
+ }
+ 
+ void html_ntxt(int len, const char *txt)
+ {
+ 	const char *t = txt;
+-	while(t && *t && len--){
++	while (t && *t && len--) {
+ 		int c = *t;
+-		if (c=='<' || c=='>' || c=='&') {
++		if (c == '<' || c == '>' || c == '&') {
+ 			html_raw(txt, t - txt);
+-			if (c=='>')
++			if (c == '>')
+ 				html("&gt;");
+-			else if (c=='<')
++			else if (c == '<')
+ 				html("&lt;");
+-			else if (c=='&')
++			else if (c == '&')
+ 				html("&amp;");
+-			txt = t+1;
++			txt = t + 1;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		html_raw(txt, t - txt);
+-	if (len<0)
++	if (len < 0)
+ 		html("...");
+ }
+ 
+ void html_attr(const char *txt)
+ {
+ 	const char *t = txt;
+-	while(t && *t){
++	while (t && *t) {
+ 		int c = *t;
+-		if (c=='<' || c=='>' || c=='\'' || c=='\"' || c=='&') {
++		if (c == '<' || c == '>' || c == '\'' || c == '\"' || c == '&') {
+ 			html_raw(txt, t - txt);
+-			if (c=='>')
++			if (c == '>')
+ 				html("&gt;");
+-			else if (c=='<')
++			else if (c == '<')
+ 				html("&lt;");
+-			else if (c=='\'')
++			else if (c == '\'')
+ 				html("&#x27;");
+-			else if (c=='"')
++			else if (c == '"')
+ 				html("&quot;");
+-			else if (c=='&')
++			else if (c == '&')
+ 				html("&amp;");
+-			txt = t+1;
++			txt = t + 1;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		html(txt);
+ }
+ 
+ void html_url_path(const char *txt)
+ {
+ 	const char *t = txt;
+-	while(t && *t){
++	while (t && *t) {
+ 		unsigned char c = *t;
+ 		const char *e = url_escape_table[c];
+-		if (e && c!='+' && c!='&') {
++		if (e && c != '+' && c != '&') {
+ 			html_raw(txt, t - txt);
+ 			html(e);
+-			txt = t+1;
++			txt = t + 1;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		html(txt);
+ }
+ 
+ void html_url_arg(const char *txt)
+ {
+ 	const char *t = txt;
+-	while(t && *t){
++	while (t && *t) {
+ 		unsigned char c = *t;
+ 		const char *e = url_escape_table[c];
+ 		if (c == ' ')
+@@ -186,11 +186,11 @@ void html_url_arg(const char *txt)
+ 		if (e) {
+ 			html_raw(txt, t - txt);
+ 			html(e);
+-			txt = t+1;
++			txt = t + 1;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		html(txt);
+ }
+ 
+@@ -260,7 +260,7 @@ int html_include(const char *filename)
+ 			filename, strerror(errno), errno);
+ 		return -1;
+ 	}
+-	while((len = fread(buf, 1, 4096, f)) > 0)
++	while ((len = fread(buf, 1, 4096, f)) > 0)
+ 		html_raw(buf, len);
+ 	fclose(f);
+ 	return 0;
+@@ -286,14 +286,14 @@ char *convert_query_hexchar(char *txt)
+ 		*txt = '\0';
+ 		return txt-1;
+ 	}
+-	d1 = hextoint(*(txt+1));
+-	d2 = hextoint(*(txt+2));
+-	if (d1<0 || d2<0) {
+-		memmove(txt, txt+3, n-2);
++	d1 = hextoint(*(txt + 1));
++	d2 = hextoint(*(txt + 2));
++	if (d1 < 0 || d2 < 0) {
++		memmove(txt, txt + 3, n - 2);
+ 		return txt-1;
+ 	} else {
+ 		*txt = d1 * 16 + d2;
+-		memmove(txt+1, txt+3, n-2);
++		memmove(txt + 1, txt + 3, n - 2);
+ 		return txt;
+ 	}
+ }
+@@ -310,23 +310,23 @@ int http_parse_querystring(const char *txt_, void (*fn)(const char *name, const
+ 		printf("Out of memory\n");
+ 		exit(1);
+ 	}
+-	while((c=*t) != '\0') {
+-		if (c=='=') {
++	while ((c=*t) != '\0') {
++		if (c == '=') {
+ 			*t = '\0';
+-			value = t+1;
+-		} else if (c=='+') {
++			value = t + 1;
++		} else if (c == '+') {
+ 			*t = ' ';
+-		} else if (c=='%') {
++		} else if (c == '%') {
+ 			t = convert_query_hexchar(t);
+-		} else if (c=='&') {
++		} else if (c == '&') {
+ 			*t = '\0';
+ 			(*fn)(txt, value);
+-			txt = t+1;
++			txt = t + 1;
+ 			value = NULL;
+ 		}
+ 		t++;
+ 	}
+-	if (t!=txt)
++	if (t != txt)
+ 		(*fn)(txt, value);
+ 	free(o);
+ 	return 0;
+diff --git a/parsing.c b/parsing.c
+index 1b2a551..9b7efb3 100644
+--- a/parsing.c
++++ b/parsing.c
+@@ -112,7 +112,7 @@ const char *reencode(char **txt, const char *src_enc, const char *dst_enc)
+ 		return *txt;
+ 
+ 	/* no encoding needed if src_enc equals dst_enc */
+-	if(!strcasecmp(src_enc, dst_enc))
++	if (!strcasecmp(src_enc, dst_enc))
+ 		return *txt;
+ 
+ 	tmp = reencode_string(*txt, dst_enc, src_enc);
+@@ -170,7 +170,7 @@ struct commitinfo *cgit_parse_commit(struct commit *commit)
+ 	}
+ 
+ 	/* if no special encoding is found, assume UTF-8 */
+-	if(!ret->msg_encoding)
++	if (!ret->msg_encoding)
+ 		ret->msg_encoding = xstrdup("UTF-8");
+ 
+ 	// skip unknown header fields
+diff --git a/scan-tree.c b/scan-tree.c
+index 6ce8036..10d90f4 100644
+--- a/scan-tree.c
++++ b/scan-tree.c
+@@ -106,7 +106,7 @@ static void add_repo(const char *base, const char *path, repo_config_fn fn)
+ 	config_fn = fn;
+ 	if (ctx.cfg.enable_git_config)
+ 		git_config_from_file(gitconfig_config, fmt("%s/config", path), NULL);
+-	
++
+ 	if (ctx.cfg.remove_suffix)
+ 		if ((p = strrchr(repo->url, '.')) && !strcmp(p, ".git"))
+ 			*p = '\0';
+@@ -185,7 +185,7 @@ static void scan_path(const char *base, const char *path, repo_config_fn fn)
+ 		add_repo(base, fmt("%s/.git", path), fn);
+ 		goto end;
+ 	}
+-	while((ent = readdir(dir)) != NULL) {
++	while ((ent = readdir(dir)) != NULL) {
+ 		if (ent->d_name[0] == '.') {
+ 			if (ent->d_name[1] == '\0')
+ 				continue;
+@@ -222,7 +222,7 @@ void scan_projects(const char *path, const char *projectsfile, repo_config_fn fn
+ 	char line[MAX_PATH * 2], *z;
+ 	FILE *projects;
+ 	int err;
+-	
++
+ 	projects = fopen(projectsfile, "r");
+ 	if (!projects) {
+ 		fprintf(stderr, "Error opening projectsfile %s: %s (%d)\n",
+diff --git a/shared.c b/shared.c
+index 8e5ae48..e732064 100644
+--- a/shared.c
++++ b/shared.c
+@@ -28,8 +28,8 @@ int chk_positive(int result, char *msg)
+ 
+ int chk_non_negative(int result, char *msg)
+ {
+-    	if (result < 0)
+-	    	die("%s: %s",msg, strerror(errno));
++	if (result < 0)
++		die("%s: %s", msg, strerror(errno));
+ 	return result;
+ }
+ 
+@@ -80,7 +80,7 @@ struct cgit_repo *cgit_get_repoinfo(const char *url)
+ 	int i;
+ 	struct cgit_repo *repo;
+ 
+-	for (i=0; i<cgit_repolist.count; i++) {
++	for (i = 0; i < cgit_repolist.count; i++) {
+ 		repo = &cgit_repolist.repos[i];
+ 		if (!strcmp(repo->url, url))
+ 			return repo;
+@@ -108,7 +108,7 @@ char *trim_end(const char *str, char c)
+ 	if (str == NULL)
+ 		return NULL;
+ 	len = strlen(str);
+-	while(len > 0 && str[len - 1] == c)
++	while (len > 0 && str[len - 1] == c)
+ 		len--;
+ 	if (len == 0)
+ 		return NULL;
+@@ -207,7 +207,7 @@ static int load_mmfile(mmfile_t *file, const unsigned char *sha1)
+ 		file->ptr = (char *)"";
+ 		file->size = 0;
+ 	} else {
+-		file->ptr = read_sha1_file(sha1, &type, 
++		file->ptr = read_sha1_file(sha1, &type,
+ 		                           (unsigned long *)&file->size);
+ 	}
+ 	return 1;
+@@ -307,7 +307,7 @@ void cgit_diff_tree(const unsigned char *old_sha1,
+ 		    filepair_fn fn, const char *prefix, int ignorews)
+ {
+ 	struct diff_options opt;
+-	int prefixlen;
++	struct pathspec_item item;
+ 
+ 	diff_setup(&opt);
+ 	opt.output_format = DIFF_FORMAT_CALLBACK;
+@@ -319,10 +319,10 @@ void cgit_diff_tree(const unsigned char *old_sha1,
+ 	opt.format_callback = cgit_diff_tree_cb;
+ 	opt.format_callback_data = fn;
+ 	if (prefix) {
+-		opt.nr_paths = 1;
+-		opt.paths = &prefix;
+-		prefixlen = strlen(prefix);
+-		opt.pathlens = &prefixlen;
++		item.match = prefix;
++		item.len = strlen(prefix);
++		opt.pathspec.nr = 1;
++		opt.pathspec.items = &item;
+ 	}
+ 	diff_setup_done(&opt);
+ 
+@@ -351,17 +351,17 @@ int cgit_parse_snapshots_mask(const char *str)
+ 	int tl, sl, rv = 0;
+ 
+ 	/* favor legacy setting */
+-	if(atoi(str))
++	if (atoi(str))
+ 		return 1;
+-	for(;;) {
+-		str += strspn(str,delim);
+-		tl = strcspn(str,delim);
++	for (;;) {
++		str += strspn(str, delim);
++		tl = strcspn(str, delim);
+ 		if (!tl)
+ 			break;
+ 		for (f = cgit_snapshot_formats; f->suffix; f++) {
+ 			sl = strlen(f->suffix);
+-			if((tl == sl && !strncmp(f->suffix, str, tl)) ||
+-			   (tl == sl-1 && !strncmp(f->suffix+1, str, tl-1))) {
++			if ((tl == sl && !strncmp(f->suffix, str, tl)) ||
++			   (tl == sl - 1 && !strncmp(f->suffix + 1, str, tl - 1))) {
+ 				rv |= f->bit;
+ 				break;
+ 			}
+diff --git a/tests/t0101-index.sh b/tests/t0101-index.sh
+index 573a351..ab63aca 100755
+--- a/tests/t0101-index.sh
++++ b/tests/t0101-index.sh
+@@ -5,14 +5,14 @@
+ prepare_tests "Check content on index page"
+ 
+ run_test 'generate index page' 'cgit_url "" >trash/tmp'
+-run_test 'find foo repo' 'grep -e "foo" trash/tmp'
+-run_test 'find foo description' 'grep -e "\[no description\]" trash/tmp'
+-run_test 'find bar repo' 'grep -e "bar" trash/tmp'
+-run_test 'find bar description' 'grep -e "the bar repo" trash/tmp'
+-run_test 'find foo+bar repo' 'grep -e ">foo+bar<" trash/tmp'
+-run_test 'verify foo+bar link' 'grep -e "/foo+bar/" trash/tmp'
+-run_test 'verify "with%20space" link' 'grep -e "/with%20space/" trash/tmp'
+-run_test 'no tree-link' '! grep -e "foo/tree" trash/tmp'
+-run_test 'no log-link' '! grep -e "foo/log" trash/tmp'
++run_test 'find foo repo' 'grep "foo" trash/tmp'
++run_test 'find foo description' 'grep "\[no description\]" trash/tmp'
++run_test 'find bar repo' 'grep "bar" trash/tmp'
++run_test 'find bar description' 'grep "the bar repo" trash/tmp'
++run_test 'find foo+bar repo' 'grep ">foo+bar<" trash/tmp'
++run_test 'verify foo+bar link' 'grep "/foo+bar/" trash/tmp'
++run_test 'verify "with%20space" link' 'grep "/with%20space/" trash/tmp'
++run_test 'no tree-link' '! grep "foo/tree" trash/tmp'
++run_test 'no log-link' '! grep "foo/log" trash/tmp'
+ 
+ tests_done
+diff --git a/tests/t0102-summary.sh b/tests/t0102-summary.sh
+index f299c5a..f778cb4 100755
+--- a/tests/t0102-summary.sh
++++ b/tests/t0102-summary.sh
+@@ -5,22 +5,22 @@
+ prepare_tests "Check content on summary page"
+ 
+ run_test 'generate foo summary' 'cgit_url "foo" >trash/tmp'
+-run_test 'find commit 1' 'grep -e "commit 1" trash/tmp'
+-run_test 'find commit 5' 'grep -e "commit 5" trash/tmp'
+-run_test 'find branch master' 'grep -e "master" trash/tmp'
+-run_test 'no tags' '! grep -e "tags" trash/tmp'
++run_test 'find commit 1' 'grep "commit 1" trash/tmp'
++run_test 'find commit 5' 'grep "commit 5" trash/tmp'
++run_test 'find branch master' 'grep "master" trash/tmp'
++run_test 'no tags' '! grep "tags" trash/tmp'
+ run_test 'clone-url expanded correctly' '
+-	grep -e "git://example.org/foo.git" trash/tmp
++	grep "git://example.org/foo.git" trash/tmp
+ '
+ 
+ run_test 'generate bar summary' 'cgit_url "bar" >trash/tmp'
+-run_test 'no commit 45' '! grep -e "commit 45" trash/tmp'
+-run_test 'find commit 46' 'grep -e "commit 46" trash/tmp'
+-run_test 'find commit 50' 'grep -e "commit 50" trash/tmp'
+-run_test 'find branch master' 'grep -e "master" trash/tmp'
+-run_test 'no tags' '! grep -e "tags" trash/tmp'
++run_test 'no commit 45' '! grep "commit 45" trash/tmp'
++run_test 'find commit 46' 'grep "commit 46" trash/tmp'
++run_test 'find commit 50' 'grep "commit 50" trash/tmp'
++run_test 'find branch master' 'grep "master" trash/tmp'
++run_test 'no tags' '! grep "tags" trash/tmp'
+ run_test 'clone-url expanded correctly' '
+-	grep -e "git://example.org/bar.git" trash/tmp
++	grep "git://example.org/bar.git" trash/tmp
+ '
+ 
+ tests_done
+diff --git a/tests/t0103-log.sh b/tests/t0103-log.sh
+index 7fa6754..67fcba0 100755
+--- a/tests/t0103-log.sh
++++ b/tests/t0103-log.sh
+@@ -5,21 +5,21 @@
+ prepare_tests "Check content on log page"
+ 
+ run_test 'generate foo/log' 'cgit_url "foo/log" >trash/tmp'
+-run_test 'find commit 1' 'grep -e "commit 1" trash/tmp'
+-run_test 'find commit 5' 'grep -e "commit 5" trash/tmp'
++run_test 'find commit 1' 'grep "commit 1" trash/tmp'
++run_test 'find commit 5' 'grep "commit 5" trash/tmp'
+ 
+ run_test 'generate bar/log' 'cgit_url "bar/log" >trash/tmp'
+-run_test 'find commit 1' 'grep -e "commit 1" trash/tmp'
+-run_test 'find commit 50' 'grep -e "commit 50" trash/tmp'
++run_test 'find commit 1' 'grep "commit 1" trash/tmp'
++run_test 'find commit 50' 'grep "commit 50" trash/tmp'
+ 
+ run_test 'generate "with%20space/log?qt=grep&q=commit+1"' '
+ 	cgit_url "with+space/log&qt=grep&q=commit+1" >trash/tmp
+ '
+-run_test 'find commit 1' 'grep -e "commit 1" trash/tmp'
+-run_test 'find link with %20 in path' 'grep -e "/with%20space/log/?qt=grep" trash/tmp'
+-run_test 'find link with + in arg' 'grep -e "/log/?qt=grep&amp;q=commit+1" trash/tmp'
+-run_test 'no links with space in path' '! grep -e "href=./with space/" trash/tmp'
+-run_test 'no links with space in arg' '! grep -e "q=commit 1" trash/tmp'
+-run_test 'commit 2 is not visible' '! grep -e "commit 2" trash/tmp'
++run_test 'find commit 1' 'grep "commit 1" trash/tmp'
++run_test 'find link with %20 in path' 'grep "/with%20space/log/?qt=grep" trash/tmp'
++run_test 'find link with + in arg' 'grep "/log/?qt=grep&amp;q=commit+1" trash/tmp'
++run_test 'no links with space in path' '! grep "href=./with space/" trash/tmp'
++run_test 'no links with space in arg' '! grep "q=commit 1" trash/tmp'
++run_test 'commit 2 is not visible' '! grep "commit 2" trash/tmp'
+ 
+ tests_done
+diff --git a/tests/t0104-tree.sh b/tests/t0104-tree.sh
+index 2ce1251..7aa3b8d 100755
+--- a/tests/t0104-tree.sh
++++ b/tests/t0104-tree.sh
+@@ -5,29 +5,29 @@
+ prepare_tests "Check content on tree page"
+ 
+ run_test 'generate bar/tree' 'cgit_url "bar/tree" >trash/tmp'
+-run_test 'find file-1' 'grep -e "file-1" trash/tmp'
+-run_test 'find file-50' 'grep -e "file-50" trash/tmp'
++run_test 'find file-1' 'grep "file-1" trash/tmp'
++run_test 'find file-50' 'grep "file-50" trash/tmp'
+ 
+ run_test 'generate bar/tree/file-50' 'cgit_url "bar/tree/file-50" >trash/tmp'
+ 
+ run_test 'find line 1' '
+-	grep -e "<a class=.no. id=.n1. name=.n1. href=.#n1.>1</a>" trash/tmp
++	grep "<a class=.no. id=.n1. name=.n1. href=.#n1.>1</a>" trash/tmp
+ '
+ 
+ run_test 'no line 2' '
+-	! grep -e "<a class=.no. id=.n2. name=.n2. href=.#n2.>2</a>" trash/tmp
++	! grep "<a class=.no. id=.n2. name=.n2. href=.#n2.>2</a>" trash/tmp
+ '
+ 
+ run_test 'generate foo+bar/tree' 'cgit_url "foo%2bbar/tree" >trash/tmp'
+ 
+ run_test 'verify a+b link' '
+-	grep -e "/foo+bar/tree/a+b" trash/tmp
++	grep "/foo+bar/tree/a+b" trash/tmp
+ '
+ 
+ run_test 'generate foo+bar/tree?h=1+2' 'cgit_url "foo%2bbar/tree&h=1%2b2" >trash/tmp'
+ 
+ run_test 'verify a+b?h=1+2 link' '
+-	grep -e "/foo+bar/tree/a+b?h=1%2b2" trash/tmp
++	grep "/foo+bar/tree/a+b?h=1%2b2" trash/tmp
+ '
+ 
+ tests_done
+diff --git a/tests/t0105-commit.sh b/tests/t0105-commit.sh
+index ae794c8..31b554b 100755
+--- a/tests/t0105-commit.sh
++++ b/tests/t0105-commit.sh
+@@ -5,33 +5,33 @@
+ prepare_tests "Check content on commit page"
+ 
+ run_test 'generate foo/commit' 'cgit_url "foo/commit" >trash/tmp'
+-run_test 'find tree link' 'grep -e "<a href=./foo/tree/.>" trash/tmp'
++run_test 'find tree link' 'grep "<a href=./foo/tree/.>" trash/tmp'
+ run_test 'find parent link' 'grep -E "<a href=./foo/commit/\?id=.+>" trash/tmp'
+ 
+ run_test 'find commit subject' '
+-	grep -e "<div class=.commit-subject.>commit 5<" trash/tmp
++	grep "<div class=.commit-subject.>commit 5<" trash/tmp
+ '
+ 
+-run_test 'find commit msg' 'grep -e "<div class=.commit-msg.></div>" trash/tmp'
+-run_test 'find diffstat' 'grep -e "<table summary=.diffstat. class=.diffstat.>" trash/tmp'
++run_test 'find commit msg' 'grep "<div class=.commit-msg.></div>" trash/tmp'
++run_test 'find diffstat' 'grep "<table summary=.diffstat. class=.diffstat.>" trash/tmp'
+ 
+ run_test 'find diff summary' '
+-	 grep -e "1 files changed, 1 insertions, 0 deletions" trash/tmp
++	grep "1 files changed, 1 insertions, 0 deletions" trash/tmp
+ '
+ 
+ run_test 'get root commit' '
+-	 root=$(cd trash/repos/foo && git rev-list --reverse HEAD | head -1) &&
+-	 cgit_url "foo/commit&id=$root" >trash/tmp &&
+-	 grep "</html>" trash/tmp
++	root=$(cd trash/repos/foo && git rev-list --reverse HEAD | head -1) &&
++	cgit_url "foo/commit&id=$root" >trash/tmp &&
++	grep "</html>" trash/tmp
+ '
+ 
+ run_test 'root commit contains diffstat' '
+-	 grep "<a href=./foo/diff/file-1.id=[0-9a-f]\{40\}.>file-1</a>" trash/tmp
++	grep "<a href=./foo/diff/file-1.id=[0-9a-f]\{40\}.>file-1</a>" trash/tmp
+ '
+ 
+ run_test 'root commit contains diff' '
+-	 grep ">diff --git a/file-1 b/file-1<" trash/tmp &&
+-	 grep -e "<div class=.add.>+1</div>" trash/tmp
++	grep ">diff --git a/file-1 b/file-1<" trash/tmp &&
++	grep "<div class=.add.>+1</div>" trash/tmp
+ '
+ 
+ tests_done
+diff --git a/tests/t0106-diff.sh b/tests/t0106-diff.sh
+index e140bcc..eee0c8c 100755
+--- a/tests/t0106-diff.sh
++++ b/tests/t0106-diff.sh
+@@ -5,16 +5,16 @@
+ prepare_tests "Check content on diff page"
+ 
+ run_test 'generate foo/diff' 'cgit_url "foo/diff" >trash/tmp'
+-run_test 'find diff header' 'grep -e "a/file-5 b/file-5" trash/tmp'
+-run_test 'find blob link' 'grep -e "<a href=./foo/tree/file-5?id=" trash/tmp'
+-run_test 'find added file' 'grep -e "new file mode 100644" trash/tmp'
++run_test 'find diff header' 'grep "a/file-5 b/file-5" trash/tmp'
++run_test 'find blob link' 'grep "<a href=./foo/tree/file-5?id=" trash/tmp'
++run_test 'find added file' 'grep "new file mode 100644" trash/tmp'
+ 
+ run_test 'find hunk header' '
+-	grep -e "<div class=.hunk.>@@ -0,0 +1 @@</div>" trash/tmp
++	grep "<div class=.hunk.>@@ -0,0 +1 @@</div>" trash/tmp
+ '
+ 
+ run_test 'find added line' '
+-	grep -e "<div class=.add.>+5</div>" trash/tmp
++	grep "<div class=.add.>+5</div>" trash/tmp
+ '
+ 
+ tests_done
+diff --git a/tests/t0107-snapshot.sh b/tests/t0107-snapshot.sh
+index 8ab4912..132d2e9 100755
+--- a/tests/t0107-snapshot.sh
++++ b/tests/t0107-snapshot.sh
+@@ -10,17 +10,20 @@ run_test 'get foo/snapshot/master.tar.gz' '
+ 
+ run_test 'check html headers' '
+ 	head -n 1 trash/tmp |
+-	     grep -e "Content-Type: application/x-gzip" &&
++	grep "Content-Type: application/x-gzip" &&
+ 
+ 	head -n 2 trash/tmp |
+-	     grep -e "Content-Disposition: inline; filename=.master.tar.gz."
++	grep "Content-Disposition: inline; filename=.master.tar.gz."
+ '
+ 
+ run_test 'strip off the header lines' '
+-	 tail -n +6 trash/tmp > trash/master.tar.gz
++	tail -n +6 trash/tmp > trash/master.tar.gz
++'
++
++run_test 'verify gzip format' '
++	gunzip --test trash/master.tar.gz
+ '
+ 
+-run_test 'verify gzip format' 'gunzip --test trash/master.tar.gz'
+ run_test 'untar' '
+ 	rm -rf trash/master &&
+ 	tar -xf trash/master.tar.gz -C trash
+@@ -32,7 +35,42 @@ run_test 'count files' '
+ '
+ 
+ run_test 'verify untarred file-5' '
+-	 grep -e "^5$" trash/master/file-5 &&
++	grep "^5$" trash/master/file-5 &&
++	test $(cat trash/master/file-5 | wc -l) = 1
++'
++
++run_test 'get foo/snapshot/master.zip' '
++	cgit_url "foo/snapshot/master.zip" >trash/tmp
++'
++
++run_test 'check HTML headers (zip)' '
++	head -n 1 trash/tmp |
++	grep "Content-Type: application/x-zip" &&
++
++	head -n 2 trash/tmp |
++	grep "Content-Disposition: inline; filename=.master.zip."
++'
++
++run_test 'strip off the header lines (zip)' '
++	tail -n +6 trash/tmp >trash/master.zip
++'
++
++run_test 'verify zip format' '
++	unzip -t trash/master.zip
++'
++
++run_test 'unzip' '
++	rm -rf trash/master &&
++	unzip trash/master.zip -d trash
++'
++
++run_test 'count files (zip)' '
++	c=$(ls -1 trash/master/ | wc -l) &&
++	test $c = 5
++'
++
++run_test 'verify unzipped file-5' '
++	 grep "^5$" trash/master/file-5 &&
+ 	 test $(cat trash/master/file-5 | wc -l) = 1
+ '
+ 
+diff --git a/tests/t0108-patch.sh b/tests/t0108-patch.sh
+index 6ee70b3..f92f69c 100755
+--- a/tests/t0108-patch.sh
++++ b/tests/t0108-patch.sh
+@@ -9,19 +9,19 @@ run_test 'generate foo/patch' '
+ '
+ 
+ run_test 'find `From:` line' '
+-	grep -e "^From: " trash/tmp
++	grep "^From: " trash/tmp
+ '
+ 
+ run_test 'find `Date:` line' '
+-	grep -e "^Date: " trash/tmp
++	grep "^Date: " trash/tmp
+ '
+ 
+ run_test 'find `Subject:` line' '
+-	grep -e "^Subject: commit 5" trash/tmp
++	grep "^Subject: commit 5" trash/tmp
+ '
+ 
+ run_test 'find `cgit` signature' '
+-	 tail -1 trash/tmp | grep -e "^cgit"
++	tail -1 trash/tmp | grep "^cgit"
+ '
+ 
+ run_test 'find initial commit' '
+@@ -33,7 +33,7 @@ run_test 'generate patch for initial commit' '
+ '
+ 
+ run_test 'find `cgit` signature' '
+-	tail -1 trash/tmp | grep -e "^cgit"
++	tail -1 trash/tmp | grep "^cgit"
+ '
+ 
+ tests_done
+diff --git a/ui-blob.c b/ui-blob.c
+index ec435e1..c59fbcb 100644
+--- a/ui-blob.c
++++ b/ui-blob.c
+@@ -11,17 +11,22 @@
+ #include "html.h"
+ #include "ui-shared.h"
+ 
+-static char *match_path;
+-static unsigned char *matched_sha1;
+-static int found_path;
++struct walk_tree_context {
++	char *match_path;
++	unsigned char *matched_sha1;
++	int found_path;
++};
+ 
+-static int walk_tree(const unsigned char *sha1, const char *base,int baselen,
+-	const char *pathname, unsigned mode, int stage, void *cbdata) {
+-	if(strncmp(base,match_path,baselen)
+-		|| strcmp(match_path+baselen,pathname) )
++static int walk_tree(const unsigned char *sha1, const char *base, int baselen,
++	const char *pathname, unsigned mode, int stage, void *cbdata)
++{
++	struct walk_tree_context *walk_tree_ctx = cbdata;
++
++	if (strncmp(base, walk_tree_ctx->match_path, baselen)
++		|| strcmp(walk_tree_ctx->match_path + baselen, pathname))
+ 		return READ_TREE_RECURSIVE;
+-	memmove(matched_sha1,sha1,20);
+-	found_path = 1;
++	memmove(walk_tree_ctx->matched_sha1, sha1, 20);
++	walk_tree_ctx->found_path = 1;
+ 	return 0;
+ }
+ 
+@@ -32,17 +37,27 @@ int cgit_print_file(char *path, const char *head)
+ 	char *buf;
+ 	unsigned long size;
+ 	struct commit *commit;
+-	const char *paths[] = {path, NULL};
++	struct pathspec_item path_items = {
++		.match = path,
++		.len = strlen(path)
++	};
++	struct pathspec paths = {
++		.nr = 1,
++		.items = &path_items
++	};
++	struct walk_tree_context walk_tree_ctx = {
++		.match_path = path,
++		.matched_sha1 = sha1,
++		.found_path = 0
++	};
++
+ 	if (get_sha1(head, sha1))
+ 		return -1;
+ 	type = sha1_object_info(sha1, &size);
+-	if(type == OBJ_COMMIT && path) {
++	if (type == OBJ_COMMIT && path) {
+ 		commit = lookup_commit_reference(sha1);
+-		match_path = path;
+-		matched_sha1 = sha1;
+-		found_path = 0;
+-		read_tree_recursive(commit->tree, "", 0, 0, paths, walk_tree, NULL);
+-		if (!found_path)
++		read_tree_recursive(commit->tree, "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
++		if (!walk_tree_ctx.found_path)
+ 			return -1;
+ 		type = sha1_object_info(sha1, &size);
+ 	}
+@@ -63,15 +78,26 @@ void cgit_print_blob(const char *hex, char *path, const char *head)
+ 	char *buf;
+ 	unsigned long size;
+ 	struct commit *commit;
+-	const char *paths[] = {path, NULL};
++	struct pathspec_item path_items = {
++		.match = path,
++		.len = strlen(path)
++	};
++	struct pathspec paths = {
++		.nr = 1,
++		.items = &path_items
++	};
++	struct walk_tree_context walk_tree_ctx = {
++		.match_path = path,
++		.matched_sha1 = sha1,
++	};
+ 
+ 	if (hex) {
+-		if (get_sha1_hex(hex, sha1)){
++		if (get_sha1_hex(hex, sha1)) {
+ 			cgit_print_error(fmt("Bad hex value: %s", hex));
+ 			return;
+ 		}
+ 	} else {
+-		if (get_sha1(head,sha1)) {
++		if (get_sha1(head, sha1)) {
+ 			cgit_print_error(fmt("Bad ref: %s", head));
+ 			return;
+ 		}
+@@ -79,11 +105,9 @@ void cgit_print_blob(const char *hex, char *path, const char *head)
+ 
+ 	type = sha1_object_info(sha1, &size);
+ 
+-	if((!hex) && type == OBJ_COMMIT && path) {
++	if ((!hex) && type == OBJ_COMMIT && path) {
+ 		commit = lookup_commit_reference(sha1);
+-		match_path = path;
+-		matched_sha1 = sha1;
+-		read_tree_recursive(commit->tree, "", 0, 0, paths, walk_tree, NULL);
++		read_tree_recursive(commit->tree, "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
+ 		type = sha1_object_info(sha1,&size);
+ 	}
+ 
+diff --git a/ui-clone.c b/ui-clone.c
+index 81e7a4e..fdea24f 100644
+--- a/ui-clone.c
++++ b/ui-clone.c
+@@ -19,12 +19,10 @@ static int print_ref_info(const char *refname, const unsigned char *sha1,
+ 	if (!(obj = parse_object(sha1)))
+ 		return 0;
+ 
+-	if (!strcmp(refname, "HEAD") || !prefixcmp(refname, "refs/heads/"))
+-		htmlf("%s\t%s\n", sha1_to_hex(sha1), refname);
+-	else if (!prefixcmp(refname, "refs/tags") && obj->type == OBJ_TAG) {
++	htmlf("%s\t%s\n", sha1_to_hex(sha1), refname);
++	if (obj->type == OBJ_TAG) {
+ 		if (!(obj = deref_tag(obj, refname, 0)))
+ 			return 0;
+-		htmlf("%s\t%s\n", sha1_to_hex(sha1), refname);
+ 		htmlf("%s\t%s^{}\n", sha1_to_hex(obj->sha1), refname);
+ 	}
+ 	return 0;
+diff --git a/ui-commit.c b/ui-commit.c
+index 536a8e8..74f37c8 100644
+--- a/ui-commit.c
++++ b/ui-commit.c
+@@ -39,7 +39,7 @@ void cgit_print_commit(char *hex, const char *prefix)
+ 	format_note(NULL, sha1, &notes, PAGE_ENCODING, 0);
+ 
+ 	load_ref_decorations(DECORATE_FULL_REFS);
+-	
++
+ 	cgit_print_diff_ctrls();
+ 	html("<table summary='commit info' class='commit-info'>\n");
+ 	html("<tr><th>author</th><td>");
+@@ -75,7 +75,7 @@ void cgit_print_commit(char *hex, const char *prefix)
+ 		cgit_tree_link(prefix, NULL, NULL, ctx.qry.head, tmp, prefix);
+ 	}
+ 	html("</td></tr>\n");
+-      	for (p = commit->parents; p ; p = p->next) {
++	for (p = commit->parents; p; p = p->next) {
+ 		parent = lookup_commit_reference(p->item->object.sha1);
+ 		if (!parent) {
+ 			html("<tr><td colspan='3'>");
+diff --git a/ui-diff.c b/ui-diff.c
+index 3d46da2..49e5b46 100644
+--- a/ui-diff.c
++++ b/ui-diff.c
+@@ -184,7 +184,7 @@ void cgit_print_diffstat(const unsigned char *old_sha1,
+ 	max_changes = 0;
+ 	cgit_diff_tree(old_sha1, new_sha1, inspect_filepair, prefix,
+ 		       ctx.qry.ignorews);
+-	for(i = 0; i<files; i++)
++	for (i = 0; i<files; i++)
+ 		print_fileinfo(&items[i]);
+ 	html("</table>");
+ 	html("<div class='diffstat-summary'>");
+diff --git a/ui-plain.c b/ui-plain.c
+index 85877d7..8ef4ec6 100644
+--- a/ui-plain.c
++++ b/ui-plain.c
+@@ -11,8 +11,10 @@
+ #include "html.h"
+ #include "ui-shared.h"
+ 
+-int match_baselen;
+-int match;
++struct walk_tree_context {
++	int match_baselen;
++	int match;
++};
+ 
+ static char *get_mimetype_from_file(const char *filename, const char *ext)
+ {
+@@ -54,7 +56,7 @@ static char *get_mimetype_from_file(const char *filename, const char *ext)
+ 	return result;
+ }
+ 
+-static void print_object(const unsigned char *sha1, const char *path)
++static int print_object(const unsigned char *sha1, const char *path)
+ {
+ 	enum object_type type;
+ 	char *buf, *ext;
+@@ -65,13 +67,13 @@ static void print_object(const unsigned char *sha1, const char *path)
+ 	type = sha1_object_info(sha1, &size);
+ 	if (type == OBJ_BAD) {
+ 		html_status(404, "Not found", 0);
+-		return;
++		return 0;
+ 	}
+ 
+ 	buf = read_sha1_file(sha1, &type, &size);
+ 	if (!buf) {
+ 		html_status(404, "Not found", 0);
+-		return;
++		return 0;
+ 	}
+ 	ctx.page.mimetype = NULL;
+ 	ext = strrchr(path, '.');
+@@ -97,9 +99,9 @@ static void print_object(const unsigned char *sha1, const char *path)
+ 	ctx.page.etag = sha1_to_hex(sha1);
+ 	cgit_print_http_headers(&ctx);
+ 	html_raw(buf, size);
+-	match = 1;
+ 	if (freemime)
+ 		free(ctx.page.mimetype);
++	return 1;
+ }
+ 
+ static char *buildpath(const char *base, int baselen, const char *path)
+@@ -138,7 +140,6 @@ static void print_dir(const unsigned char *sha1, const char *base,
+ 				fullpath);
+ 		html("</li>\n");
+ 	}
+-	match = 2;
+ }
+ 
+ static void print_dir_entry(const unsigned char *sha1, const char *base,
+@@ -156,7 +157,6 @@ static void print_dir_entry(const unsigned char *sha1, const char *base,
+ 		cgit_plain_link(path, NULL, NULL, ctx.qry.head, ctx.qry.sha1,
+ 				fullpath);
+ 	html("</li>\n");
+-	match = 2;
+ }
+ 
+ static void print_dir_tail(void)
+@@ -168,18 +168,23 @@ static int walk_tree(const unsigned char *sha1, const char *base, int baselen,
+ 		     const char *pathname, unsigned mode, int stage,
+ 		     void *cbdata)
+ {
+-	if (baselen == match_baselen) {
+-		if (S_ISREG(mode))
+-			print_object(sha1, pathname);
+-		else if (S_ISDIR(mode)) {
++	struct walk_tree_context *walk_tree_ctx = cbdata;
++
++	if (baselen == walk_tree_ctx->match_baselen) {
++		if (S_ISREG(mode)) {
++			if (print_object(sha1, pathname))
++				walk_tree_ctx->match = 1;
++		} else if (S_ISDIR(mode)) {
+ 			print_dir(sha1, base, baselen, pathname);
++			walk_tree_ctx->match = 2;
+ 			return READ_TREE_RECURSIVE;
+ 		}
+-	}
+-	else if (baselen > match_baselen)
++	} else if (baselen > walk_tree_ctx->match_baselen) {
+ 		print_dir_entry(sha1, base, baselen, pathname, mode);
+-	else if (S_ISDIR(mode))
++		walk_tree_ctx->match = 2;
++	} else if (S_ISDIR(mode)) {
+ 		return READ_TREE_RECURSIVE;
++	}
+ 
+ 	return 0;
+ }
+@@ -197,7 +202,17 @@ void cgit_print_plain(struct cgit_context *ctx)
+ 	const char *rev = ctx->qry.sha1;
+ 	unsigned char sha1[20];
+ 	struct commit *commit;
+-	const char *paths[] = {ctx->qry.path, NULL};
++	struct pathspec_item path_items = {
++		.match = ctx->qry.path,
++		.len = ctx->qry.path ? strlen(ctx->qry.path) : 0
++	};
++	struct pathspec paths = {
++		.nr = 1,
++		.items = &path_items
++	};
++	struct walk_tree_context walk_tree_ctx = {
++		.match = 0
++	};
+ 
+ 	if (!rev)
+ 		rev = ctx->qry.head;
+@@ -211,16 +226,17 @@ void cgit_print_plain(struct cgit_context *ctx)
+ 		html_status(404, "Not found", 0);
+ 		return;
+ 	}
+-	if (!paths[0]) {
+-		paths[0] = "";
+-		match_baselen = -1;
++	if (!path_items.match) {
++		path_items.match = "";
++		walk_tree_ctx.match_baselen = -1;
+ 		print_dir(commit->tree->object.sha1, "", 0, "");
++		walk_tree_ctx.match = 2;
+ 	}
+ 	else
+-		match_baselen = basedir_len(paths[0]);
+-	read_tree_recursive(commit->tree, "", 0, 0, paths, walk_tree, NULL);
+-	if (!match)
++		walk_tree_ctx.match_baselen = basedir_len(path_items.match);
++	read_tree_recursive(commit->tree, "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
++	if (!walk_tree_ctx.match)
+ 		html_status(404, "Not found", 0);
+-	else if (match == 2)
++	else if (walk_tree_ctx.match == 2)
+ 		print_dir_tail();
+ }
+diff --git a/ui-refs.c b/ui-refs.c
+index caddfbc..ce06b08 100644
+--- a/ui-refs.c
++++ b/ui-refs.c
+@@ -200,7 +200,7 @@ void cgit_print_branches(int maxcount)
+ 		qsort(list.refs, maxcount, sizeof(*list.refs), cmp_ref_name);
+ 	}
+ 
+-	for(i=0; i<maxcount; i++)
++	for (i = 0; i < maxcount; i++)
+ 		print_branch(list.refs[i]);
+ 
+ 	if (maxcount < list.count)
+@@ -224,7 +224,7 @@ void cgit_print_tags(int maxcount)
+ 	else if (maxcount > list.count)
+ 		maxcount = list.count;
+ 	print_tag_header();
+-	for(i=0; i<maxcount; i++)
++	for (i = 0; i < maxcount; i++)
+ 		print_tag(list.refs[i]);
+ 
+ 	if (maxcount < list.count)
+diff --git a/ui-repolist.c b/ui-repolist.c
+index dead1bf..1ae22aa 100644
+--- a/ui-repolist.c
++++ b/ui-repolist.c
+@@ -110,12 +110,13 @@ void print_sort_header(const char *title, const char *sort)
+ 	htmlf("'>%s</a></th>", title);
+ }
+ 
+-void print_header(int columns)
++void print_header()
+ {
+ 	html("<tr class='nohover'>");
+ 	print_sort_header("Name", "name");
+ 	print_sort_header("Description", "desc");
+-	print_sort_header("Owner", "owner");
++	if (ctx.cfg.enable_index_owner)
++		print_sort_header("Owner", "owner");
+ 	print_sort_header("Idle", "idle");
+ 	if (ctx.cfg.enable_index_links)
+ 		html("<th class='left'>Links</th>");
+@@ -128,10 +129,10 @@ void print_pager(int items, int pagelen, char *search, char *sort)
+ 	int i, ofs;
+ 	char *class = NULL;
+ 	html("<div class='pager'>");
+-	for(i = 0, ofs = 0; ofs < items; i++, ofs = i * pagelen) {
++	for (i = 0, ofs = 0; ofs < items; i++, ofs = i * pagelen) {
+ 		class = (ctx.qry.ofs == ofs) ? "current" : NULL;
+-		cgit_index_link(fmt("[%d]", i+1), fmt("Page %d", i+1), class,
+-				search, sort, ofs);
++		cgit_index_link(fmt("[%d]", i + 1), fmt("Page %d", i + 1),
++				class, search, sort, ofs);
+ 	}
+ 	html("</div>");
+ }
+@@ -239,13 +240,15 @@ int sort_repolist(char *field)
+ 
+ void cgit_print_repolist()
+ {
+-	int i, columns = 4, hits = 0, header = 0;
++	int i, columns = 3, hits = 0, header = 0;
+ 	char *last_section = NULL;
+ 	char *section;
+ 	int sorted = 0;
+ 
+ 	if (ctx.cfg.enable_index_links)
+-		columns++;
++		++columns;
++	if (ctx.cfg.enable_index_owner)
++		++columns;
+ 
+ 	ctx.page.title = ctx.cfg.root_title;
+ 	cgit_print_http_headers(&ctx);
+@@ -255,13 +258,13 @@ void cgit_print_repolist()
+ 	if (ctx.cfg.index_header)
+ 		html_include(ctx.cfg.index_header);
+ 
+-	if(ctx.qry.sort)
++	if (ctx.qry.sort)
+ 		sorted = sort_repolist(ctx.qry.sort);
+ 	else if (ctx.cfg.section_sort)
+ 		sort_repolist("section");
+ 
+ 	html("<table summary='repository list' class='list nowrap'>");
+-	for (i=0; i<cgit_repolist.count; i++) {
++	for (i = 0; i < cgit_repolist.count; i++) {
+ 		ctx.repo = &cgit_repolist.repos[i];
+ 		if (!(is_match(ctx.repo) && is_in_url(ctx.repo)))
+ 			continue;
+@@ -271,7 +274,7 @@ void cgit_print_repolist()
+ 		if (hits > ctx.qry.ofs + ctx.cfg.max_repo_count)
+ 			continue;
+ 		if (!header++)
+-			print_header(columns);
++			print_header();
+ 		section = ctx.repo->section;
+ 		if (section && !strcmp(section, ""))
+ 			section = NULL;
+@@ -294,8 +297,10 @@ void cgit_print_repolist()
+ 		html_ntxt(ctx.cfg.max_repodesc_len, ctx.repo->desc);
+ 		html_link_close();
+ 		html("</td><td>");
+-		html_txt(ctx.repo->owner);
+-		html("</td><td>");
++		if (ctx.cfg.enable_index_owner) {
++			html_txt(ctx.repo->owner);
++			html("</td><td>");
++		}
+ 		print_modtime(ctx.repo);
+ 		html("</td>");
+ 		if (ctx.cfg.enable_index_links) {
+diff --git a/ui-shared.c b/ui-shared.c
+index 75b97a1..af5310b 100644
+--- a/ui-shared.c
++++ b/ui-shared.c
+@@ -23,7 +23,7 @@ static char *http_date(time_t t)
+ 		 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+ 	struct tm *tm = gmtime(&t);
+ 	return fmt("%s, %02d %s %04d %02d:%02d:%02d GMT", day[tm->tm_wday],
+-		   tm->tm_mday, month[tm->tm_mon], 1900+tm->tm_year,
++		   tm->tm_mday, month[tm->tm_mon], 1900 + tm->tm_year,
+ 		   tm->tm_hour, tm->tm_min, tm->tm_sec);
+ }
+ 
+@@ -93,7 +93,7 @@ char *cgit_fileurl(const char *reponame, const char *pagename,
+ char *cgit_pageurl(const char *reponame, const char *pagename,
+ 		   const char *query)
+ {
+-	return cgit_fileurl(reponame,pagename,0,query);
++	return cgit_fileurl(reponame, pagename, 0, query);
+ }
+ 
+ const char *cgit_repobasename(const char *reponame)
+@@ -102,21 +102,21 @@ const char *cgit_repobasename(const char *reponame)
+ 	static char rvbuf[1024];
+ 	int p;
+ 	const char *rv;
+-	strncpy(rvbuf,reponame,sizeof(rvbuf));
+-	if(rvbuf[sizeof(rvbuf)-1])
++	strncpy(rvbuf, reponame, sizeof(rvbuf));
++	if (rvbuf[sizeof(rvbuf)-1])
+ 		die("cgit_repobasename: truncated repository name '%s'", reponame);
+ 	p = strlen(rvbuf)-1;
+ 	/* strip trailing slashes */
+-	while(p && rvbuf[p]=='/') rvbuf[p--]=0;
++	while (p && rvbuf[p] == '/') rvbuf[p--] = 0;
+ 	/* strip trailing .git */
+-	if(p>=3 && !strncmp(&rvbuf[p-3],".git",4)) {
++	if (p >= 3 && !strncmp(&rvbuf[p-3], ".git", 4)) {
+ 		p -= 3; rvbuf[p--] = 0;
+ 	}
+ 	/* strip more trailing slashes if any */
+-	while( p && rvbuf[p]=='/') rvbuf[p--]=0;
++	while ( p && rvbuf[p] == '/') rvbuf[p--] = 0;
+ 	/* find last slash in the remaining string */
+ 	rv = strrchr(rvbuf,'/');
+-	if(rv)
++	if (rv)
+ 		return ++rv;
+ 	return rvbuf;
+ }
+@@ -499,7 +499,7 @@ void cgit_object_link(struct object *obj)
+ 	shortrev = xstrdup(fullrev);
+ 	shortrev[10] = '\0';
+ 	if (obj->type == OBJ_COMMIT) {
+-                cgit_commit_link(fmt("commit %s...", shortrev), NULL, NULL,
++		cgit_commit_link(fmt("commit %s...", shortrev), NULL, NULL,
+ 				 ctx.qry.head, fullrev, NULL, 0);
+ 		return;
+ 	} else if (obj->type == OBJ_TREE)
+@@ -564,6 +564,7 @@ void cgit_submodule_link(const char *class, char *path, const char *rev)
+ 	html("'>");
+ 	html_txt(path);
+ 	html("</a>");
++	html_txt(fmt(" @ %.7s", rev));
+ 	if (item && tail)
+ 		path[len - 1] = tail;
+ }
+@@ -575,7 +576,7 @@ void cgit_print_date(time_t secs, const char *format, int local_time)
+ 
+ 	if (!secs)
+ 		return;
+-	if(local_time)
++	if (local_time)
+ 		time = localtime(&secs);
+ 	else
+ 		time = gmtime(&secs);
+@@ -735,7 +736,7 @@ int print_archive_ref(const char *refname, const unsigned char *sha1,
+ 
+ 	if (prefixcmp(refname, "refs/archives"))
+ 		return 0;
+-	strncpy(buf, refname+14, sizeof(buf));
++	strncpy(buf, refname + 14, sizeof(buf));
+ 	obj = parse_object(sha1);
+ 	if (!obj)
+ 		return 1;
+@@ -967,7 +968,7 @@ void cgit_print_snapshot_links(const char *repo, const char *head,
+ {
+ 	const struct cgit_snapshot_format* f;
+ 	char *prefix;
+-    	char *filename;
++	char *filename;
+ 	unsigned char sha1[20];
+ 
+ 	if (get_sha1(fmt("refs/tags/%s", hex), sha1) == 0 &&
+diff --git a/ui-snapshot.c b/ui-snapshot.c
+index 47432bd..54e659c 100644
+--- a/ui-snapshot.c
++++ b/ui-snapshot.c
+@@ -11,7 +11,32 @@
+ #include "html.h"
+ #include "ui-shared.h"
+ 
+-static int write_compressed_tar_archive(struct archiver_args *args, char *filter_argv[])
++static int write_archive_type(const char *format, const char *hex, const char *prefix)
++{
++	struct argv_array argv = ARGV_ARRAY_INIT;
++	argv_array_push(&argv, "snapshot");
++	argv_array_push(&argv, format);
++	if (prefix) {
++		argv_array_push(&argv, "--prefix");
++		argv_array_push(&argv, fmt("%s/", prefix));
++	}
++	argv_array_push(&argv, hex);
++	return write_archive(argv.argc, argv.argv, NULL, 1, NULL, 0);
++}
++
++static int write_tar_archive(const char *hex, const char *prefix)
++{
++	return write_archive_type("--format=tar", hex, prefix);
++}
++
++static int write_zip_archive(const char *hex, const char *prefix)
++{
++	return write_archive_type("--format=zip", hex, prefix);
++}
++
++static int write_compressed_tar_archive(const char *hex,
++					const char *prefix,
++					char *filter_argv[])
+ {
+ 	int rv;
+ 	struct cgit_filter f;
+@@ -19,27 +44,27 @@ static int write_compressed_tar_archive(struct archiver_args *args, char *filter
+ 	f.cmd = filter_argv[0];
+ 	f.argv = filter_argv;
+ 	cgit_open_filter(&f);
+-	rv = write_tar_archive(args);
++	rv = write_tar_archive(hex, prefix);
+ 	cgit_close_filter(&f);
+ 	return rv;
+ }
+ 
+-static int write_tar_gzip_archive(struct archiver_args *args)
++static int write_tar_gzip_archive(const char *hex, const char *prefix)
+ {
+ 	char *argv[] = { "gzip", "-n", NULL };
+-	return write_compressed_tar_archive(args, argv);
++	return write_compressed_tar_archive(hex, prefix, argv);
+ }
+ 
+-static int write_tar_bzip2_archive(struct archiver_args *args)
++static int write_tar_bzip2_archive(const char *hex, const char *prefix)
+ {
+ 	char *argv[] = { "bzip2", NULL };
+-	return write_compressed_tar_archive(args, argv);
++	return write_compressed_tar_archive(hex, prefix, argv);
+ }
+ 
+-static int write_tar_xz_archive(struct archiver_args *args)
++static int write_tar_xz_archive(const char *hex, const char *prefix)
+ {
+ 	char *argv[] = { "xz", NULL };
+-	return write_compressed_tar_archive(args, argv);
++	return write_compressed_tar_archive(hex, prefix, argv);
+ }
+ 
+ const struct cgit_snapshot_format cgit_snapshot_formats[] = {
+@@ -48,7 +73,7 @@ const struct cgit_snapshot_format cgit_snapshot_formats[] = {
+ 	{ ".tar.bz2", "application/x-bzip2", write_tar_bzip2_archive, 0x04 },
+ 	{ ".tar", "application/x-tar", write_tar_archive, 0x08 },
+ 	{ ".tar.xz", "application/x-xz", write_tar_xz_archive, 0x10 },
+-	{}
++	{ NULL }
+ };
+ 
+ static const struct cgit_snapshot_format *get_format(const char *filename)
+@@ -57,7 +82,7 @@ static const struct cgit_snapshot_format *get_format(const char *filename)
+ 	int fl, sl;
+ 
+ 	fl = strlen(filename);
+-	for(fmt = cgit_snapshot_formats; fmt->suffix; fmt++) {
++	for (fmt = cgit_snapshot_formats; fmt->suffix; fmt++) {
+ 		sl = strlen(fmt->suffix);
+ 		if (sl >= fl)
+ 			continue;
+@@ -71,34 +96,20 @@ static int make_snapshot(const struct cgit_snapshot_format *format,
+ 			 const char *hex, const char *prefix,
+ 			 const char *filename)
+ {
+-	struct archiver_args args;
+-	struct commit *commit;
+ 	unsigned char sha1[20];
+ 
+-	if(get_sha1(hex, sha1)) {
++	if (get_sha1(hex, sha1)) {
+ 		cgit_print_error(fmt("Bad object id: %s", hex));
+ 		return 1;
+ 	}
+-	commit = lookup_commit_reference(sha1);
+-	if(!commit) {
++	if (!lookup_commit_reference(sha1)) {
+ 		cgit_print_error(fmt("Not a commit reference: %s", hex));
+ 		return 1;
+ 	}
+-	memset(&args, 0, sizeof(args));
+-	if (prefix) {
+-		args.base = fmt("%s/", prefix);
+-		args.baselen = strlen(prefix) + 1;
+-	} else {
+-		args.base = "";
+-		args.baselen = 0;
+-	}
+-	args.tree = commit->tree;
+-	args.time = commit->date;
+-	args.compression_level = Z_DEFAULT_COMPRESSION;
+ 	ctx.page.mimetype = xstrdup(format->mimetype);
+ 	ctx.page.filename = xstrdup(filename);
+ 	cgit_print_http_headers(&ctx);
+-	format->write_func(&args);
++	format->write_func(hex, prefix);
+ 	return 0;
+ }
+ 
+diff --git a/ui-ssdiff.c b/ui-ssdiff.c
+index 7108779..3d3dad6 100644
+--- a/ui-ssdiff.c
++++ b/ui-ssdiff.c
+@@ -138,9 +138,8 @@ static char *replace_tabs(char *line)
+ 			strcat(result, prev_buf);
+ 			break;
+ 		} else {
+-			strcat(result, " ");
+-			strncat(result, spaces, 8 - (strlen(result) % 8));
+ 			strncat(result, prev_buf, cur_buf - prev_buf);
++			strncat(result, spaces, 8 - (strlen(result) % 8));
+ 		}
+ 		prev_buf = cur_buf + 1;
+ 	}
+diff --git a/ui-stats.c b/ui-stats.c
+index 59f4c1e..9cf1dbd 100644
+--- a/ui-stats.c
++++ b/ui-stats.c
+@@ -23,21 +23,21 @@ static void trunc_week(struct tm *tm)
+ {
+ 	time_t t = timegm(tm);
+ 	t -= ((tm->tm_wday + 6) % 7) * DAY_SECS;
+-	gmtime_r(&t, tm);	
++	gmtime_r(&t, tm);
+ }
+ 
+ static void dec_week(struct tm *tm)
+ {
+ 	time_t t = timegm(tm);
+ 	t -= WEEK_SECS;
+-	gmtime_r(&t, tm);	
++	gmtime_r(&t, tm);
+ }
+ 
+ static void inc_week(struct tm *tm)
+ {
+ 	time_t t = timegm(tm);
+ 	t += WEEK_SECS;
+-	gmtime_r(&t, tm);	
++	gmtime_r(&t, tm);
+ }
+ 
+ static char *pretty_week(struct tm *tm)
+@@ -83,7 +83,7 @@ static char *pretty_month(struct tm *tm)
+ static void trunc_quarter(struct tm *tm)
+ {
+ 	trunc_month(tm);
+-	while(tm->tm_mon % 3 != 0)
++	while (tm->tm_mon % 3 != 0)
+ 		dec_month(tm);
+ }
+ 
+@@ -153,7 +153,7 @@ int cgit_find_stats_period(const char *expr, struct cgit_period **period)
+ 		if (periods[i].code == code || !strcmp(periods[i].name, expr)) {
+ 			if (period)
+ 				*period = &periods[i];
+-			return i+1;
++			return i + 1;
+ 		}
+ 	return 0;
+ }
+@@ -239,7 +239,7 @@ struct string_list collect_stats(struct cgit_context *ctx,
+ 	init_revisions(&rev, NULL);
+ 	rev.abbrev = DEFAULT_ABBREV;
+ 	rev.commit_format = CMIT_FMT_DEFAULT;
+-	rev.no_merges = 1;
++	rev.max_parents = 1;
+ 	rev.verbose_header = 1;
+ 	rev.show_root_diff = 0;
+ 	setup_revisions(argc, argv, &rev, NULL);
+diff --git a/ui-tag.c b/ui-tag.c
+index 39e4cb8..cab96b1 100644
+--- a/ui-tag.c
++++ b/ui-tag.c
+@@ -99,6 +99,6 @@ void cgit_print_tag(char *revname)
+ 		if (ctx.repo->snapshots)
+ 			print_download_links(revname);
+ 		html("</table>\n");
+-        }
++	}
+ 	return;
+ }
+diff --git a/ui-tree.c b/ui-tree.c
+index b1adcc7..561f9e7 100644
+--- a/ui-tree.c
++++ b/ui-tree.c
+@@ -11,9 +11,11 @@
+ #include "html.h"
+ #include "ui-shared.h"
+ 
+-char *curr_rev;
+-char *match_path;
+-int header = 0;
++struct walk_tree_context {
++	char *curr_rev;
++	char *match_path;
++	int state;
++};
+ 
+ static void print_text_buffer(const char *name, char *buf, unsigned long size)
+ {
+@@ -27,10 +29,10 @@ static void print_text_buffer(const char *name, char *buf, unsigned long size)
+ 		html("<tr><td class='linenumbers'><pre>");
+ 		idx = 0;
+ 		lineno = 0;
+-	
++
+ 		if (size) {
+ 			htmlf(numberfmt, ++lineno);
+-			while(idx < size - 1) { // skip absolute last newline
++			while (idx < size - 1) { // skip absolute last newline
+ 				if (buf[idx] == '\n')
+ 					htmlf(numberfmt, ++lineno);
+ 				idx++;
+@@ -84,7 +86,7 @@ static void print_binary_buffer(char *buf, unsigned long size)
+ 	html("</table>\n");
+ }
+ 
+-static void print_object(const unsigned char *sha1, char *path, const char *basename)
++static void print_object(const unsigned char *sha1, char *path, const char *basename, const char *rev)
+ {
+ 	enum object_type type;
+ 	char *buf;
+@@ -106,7 +108,7 @@ static void print_object(const unsigned char *sha1, char *path, const char *base
+ 
+ 	htmlf("blob: %s (", sha1_to_hex(sha1));
+ 	cgit_plain_link("plain", NULL, NULL, ctx.qry.head,
+-		        curr_rev, path);
++		        rev, path);
+ 	html(")\n");
+ 
+ 	if (ctx.cfg.max_blob_size && size / 1024 > ctx.cfg.max_blob_size) {
+@@ -126,6 +128,7 @@ static int ls_item(const unsigned char *sha1, const char *base, int baselen,
+ 		   const char *pathname, unsigned int mode, int stage,
+ 		   void *cbdata)
+ {
++	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 	char *name;
+ 	char *fullpath;
+ 	char *class;
+@@ -153,7 +156,7 @@ static int ls_item(const unsigned char *sha1, const char *base, int baselen,
+ 		cgit_submodule_link("ls-mod", fullpath, sha1_to_hex(sha1));
+ 	} else if (S_ISDIR(mode)) {
+ 		cgit_tree_link(name, NULL, "ls-dir", ctx.qry.head,
+-			       curr_rev, fullpath);
++			       walk_tree_ctx->curr_rev, fullpath);
+ 	} else {
+ 		class = strrchr(name, '.');
+ 		if (class != NULL) {
+@@ -161,19 +164,20 @@ static int ls_item(const unsigned char *sha1, const char *base, int baselen,
+ 		} else
+ 			class = "ls-blob";
+ 		cgit_tree_link(name, NULL, class, ctx.qry.head,
+-			       curr_rev, fullpath);
++			       walk_tree_ctx->curr_rev, fullpath);
+ 	}
+ 	htmlf("</td><td class='ls-size'>%li</td>", size);
+ 
+ 	html("<td>");
+-	cgit_log_link("log", NULL, "button", ctx.qry.head, curr_rev,
+-		      fullpath, 0, NULL, NULL, ctx.qry.showmsg);
++	cgit_log_link("log", NULL, "button", ctx.qry.head,
++		      walk_tree_ctx->curr_rev, fullpath, 0, NULL, NULL,
++		      ctx.qry.showmsg);
+ 	if (ctx.repo->max_stats)
+ 		cgit_stats_link("stats", NULL, "button", ctx.qry.head,
+ 				fullpath);
+ 	if (!S_ISGITLINK(mode))
+-		cgit_plain_link("plain", NULL, "button", ctx.qry.head, curr_rev,
+-				fullpath);
++		cgit_plain_link("plain", NULL, "button", ctx.qry.head,
++				walk_tree_ctx->curr_rev, fullpath);
+ 	html("</td></tr>\n");
+ 	free(name);
+ 	return 0;
+@@ -188,20 +192,19 @@ static void ls_head()
+ 	html("<th class='right'>Size</th>");
+ 	html("<th/>");
+ 	html("</tr>\n");
+-	header = 1;
+ }
+ 
+ static void ls_tail()
+ {
+-	if (!header)
+-		return;
+ 	html("</table>\n");
+-	header = 0;
+ }
+ 
+-static void ls_tree(const unsigned char *sha1, char *path)
++static void ls_tree(const unsigned char *sha1, char *path, struct walk_tree_context *walk_tree_ctx)
+ {
+ 	struct tree *tree;
++	struct pathspec paths = {
++		.nr = 0
++	};
+ 
+ 	tree = parse_tree_indirect(sha1);
+ 	if (!tree) {
+@@ -211,7 +214,7 @@ static void ls_tree(const unsigned char *sha1, char *path)
+ 	}
+ 
+ 	ls_head();
+-	read_tree_recursive(tree, "", 0, 1, NULL, ls_item, NULL);
++	read_tree_recursive(tree, "", 0, 1, &paths, ls_item, walk_tree_ctx);
+ 	ls_tail();
+ }
+ 
+@@ -220,25 +223,25 @@ static int walk_tree(const unsigned char *sha1, const char *base, int baselen,
+ 		     const char *pathname, unsigned mode, int stage,
+ 		     void *cbdata)
+ {
+-	static int state;
++	struct walk_tree_context *walk_tree_ctx = cbdata;
+ 	static char buffer[PATH_MAX];
+ 
+-	if (state == 0) {
++	if (walk_tree_ctx->state == 0) {
+ 		memcpy(buffer, base, baselen);
+-		strcpy(buffer+baselen, pathname);
+-		if (strcmp(match_path, buffer))
++		strcpy(buffer + baselen, pathname);
++		if (strcmp(walk_tree_ctx->match_path, buffer))
+ 			return READ_TREE_RECURSIVE;
+ 
+ 		if (S_ISDIR(mode)) {
+-			state = 1;
++			walk_tree_ctx->state = 1;
+ 			ls_head();
+ 			return READ_TREE_RECURSIVE;
+ 		} else {
+-			print_object(sha1, buffer, pathname);
++			print_object(sha1, buffer, pathname, walk_tree_ctx->curr_rev);
+ 			return 0;
+ 		}
+ 	}
+-	ls_item(sha1, base, baselen, pathname, mode, stage, NULL);
++	ls_item(sha1, base, baselen, pathname, mode, stage, walk_tree_ctx);
+ 	return 0;
+ }
+ 
+@@ -252,12 +255,23 @@ void cgit_print_tree(const char *rev, char *path)
+ {
+ 	unsigned char sha1[20];
+ 	struct commit *commit;
+-	const char *paths[] = {path, NULL};
++	struct pathspec_item path_items = {
++		.match = path,
++		.len = path ? strlen(path) : 0
++	};
++	struct pathspec paths = {
++		.nr = path ? 1 : 0,
++		.items = &path_items
++	};
++	struct walk_tree_context walk_tree_ctx = {
++		.match_path = path,
++		.state = 0
++	};
+ 
+ 	if (!rev)
+ 		rev = ctx.qry.head;
+ 
+-	curr_rev = xstrdup(rev);
++	walk_tree_ctx.curr_rev = xstrdup(rev);
+ 	if (get_sha1(rev, sha1)) {
+ 		cgit_print_error(fmt("Invalid revision name: %s", rev));
+ 		return;
+@@ -269,11 +283,11 @@ void cgit_print_tree(const char *rev, char *path)
+ 	}
+ 
+ 	if (path == NULL) {
+-		ls_tree(commit->tree->object.sha1, NULL);
++		ls_tree(commit->tree->object.sha1, NULL, &walk_tree_ctx);
+ 		return;
+ 	}
+ 
+-	match_path = path;
+-	read_tree_recursive(commit->tree, "", 0, 0, paths, walk_tree, NULL);
+-	ls_tail();
++	read_tree_recursive(commit->tree, "", 0, 0, &paths, walk_tree, &walk_tree_ctx);
++	if (walk_tree_ctx.state == 1)
++		ls_tail();
+ }

@@ -1,37 +1,33 @@
 --- cgit-0.8.3.4/Makefile.orig	2010-09-27 08:00:47.000000000 +0200
 +++ cgit-0.8.3.4/Makefile	2010-10-14 01:24:36.000000000 +0200
 @@ -8,6 +8,7 @@
- GIT_VER = 1.7.3
- GIT_URL = http://www.kernel.org/pub/software/scm/git/git-$(GIT_VER).tar.bz2
+ GIT_VER = 1.7.12.4
+ GIT_URL = https://git-core.googlecode.com/files/git-$(GIT_VER).tar.gz
  INSTALL = install
 +LIBDIR = /usr/lib
- 
- # Define NO_STRCASESTR if you don't have strcasestr.
- #
-@@ -68,7 +69,7 @@
- 	$(QUIET_CC)$(CC) -o $*.o -c $(CFLAGS) $<
- 
- 
--EXTLIBS = git/libgit.a git/xdiff/lib.a -lz -lcrypto -lpthread
-+EXTLIBS = $(LIBDIR)/libgit.a $(LIBDIR)/libgit_xdiff.a -lz -lcrypto -lpthread
- OBJECTS =
- OBJECTS += cache.o
- OBJECTS += cgit.o
-@@ -124,17 +125,13 @@
- 	CFLAGS += -DNO_STRCASESTR
+ MAN5_TXT = $(wildcard *.5.txt)
+ MAN_TXT  = $(MAN5_TXT)
+ DOC_MAN5 = $(patsubst %.txt,%,$(MAN5_TXT))
+@@ -1238,7 +123,7 @@
+ 	LDLIBS += -liconv
  endif
  
--cgit: $(OBJECTS) libgit
-+cgit: $(OBJECTS)
- 	$(QUIET_CC)$(CC) $(CFLAGS) $(LDFLAGS) -o cgit $(OBJECTS) $(EXTLIBS)
+-LDLIBS += git/libgit.a git/xdiff/lib.a -lz -lpthread
++LDLIBS += $(LIBDIR)/libgit.a $(LIBDIR)/libgit_xdiff.a -lpcre -lz -lpthread
  
- cgit.o: VERSION
+ OBJECTS += cgit.o
+ OBJECTS += cache.o
+@@ -174,13 +175,9 @@
  
- -include $(OBJECTS:.o=.d)
+ all:: cgit
+ 
+-cgit: VERSION $(OBJECTS) libgit
++cgit: VERSION $(OBJECTS)
+ 	$(QUIET_LINK)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS)
  
 -libgit:
--	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 libgit.a
--	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 xdiff/lib.a
+-	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 $(GIT_OPTIONS) libgit.a
+-	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 $(GIT_OPTIONS) xdiff/lib.a
 -
  test: all
  	$(QUIET_SUBDIR0)tests $(QUIET_SUBDIR1) all
