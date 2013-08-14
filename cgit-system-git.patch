@@ -1,34 +1,12 @@
---- cgit-0.8.3.4/Makefile.orig	2010-09-27 08:00:47.000000000 +0200
-+++ cgit-0.8.3.4/Makefile	2010-10-14 01:24:36.000000000 +0200
-@@ -8,6 +8,7 @@
- GIT_VER = 1.7.12.4
- GIT_URL = https://git-core.googlecode.com/files/git-$(GIT_VER).tar.gz
- INSTALL = install
-+LIBDIR = /usr/lib
- MAN5_TXT = $(wildcard *.5.txt)
- MAN_TXT  = $(MAN5_TXT)
- DOC_MAN5 = $(patsubst %.txt,%,$(MAN5_TXT))
-@@ -1238,7 +123,7 @@
- 	LDLIBS += -liconv
- endif
+diff --git a/cgit.mk b/cgit.mk
+index 8af0041..35beb03 100644
+--- a/cgit.mk
++++ b/cgit.mk
+@@ -87,5 +87,6 @@ $(CGIT_PREFIX)CGIT-CFLAGS: FORCE
+ $(CGIT_OBJS): %.o: %.c GIT-CFLAGS $(CGIT_PREFIX)CGIT-CFLAGS $(missing_dep_dirs)
+ 	$(QUIET_CC)$(CC) -o $*.o -c $(dep_args) $(ALL_CFLAGS) $(EXTRA_CPPFLAGS) $(CGIT_CFLAGS) $<
  
--LDLIBS += git/libgit.a git/xdiff/lib.a -lz -lpthread
-+LDLIBS += $(LIBDIR)/libgit.a $(LIBDIR)/libgit_xdiff.a -lpcre -lz -lpthread
- 
- OBJECTS += cgit.o
- OBJECTS += cache.o
-@@ -174,13 +175,9 @@
- 
- all:: cgit
- 
--cgit: VERSION $(OBJECTS) libgit
-+cgit: VERSION $(OBJECTS)
- 	$(QUIET_LINK)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS) $(LDLIBS)
- 
--libgit:
--	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 $(GIT_OPTIONS) libgit.a
--	$(QUIET_SUBDIR0)git $(QUIET_SUBDIR1) NO_CURL=1 $(GIT_OPTIONS) xdiff/lib.a
--
- test: all
- 	$(QUIET_SUBDIR0)tests $(QUIET_SUBDIR1) all
- 
+-$(CGIT_PREFIX)cgit: $(CGIT_OBJS) GIT-LDFLAGS $(GITLIBS)
++LIBS = -lgit -lgit_xdiff $(EXTLIBS)
++$(CGIT_PREFIX)cgit: $(CGIT_OBJS) GIT-LDFLAGS
+ 	$(QUIET_LINK)$(CC) $(ALL_CFLAGS) -o $@ $(ALL_LDFLAGS) $(filter %.o,$^) $(LIBS)

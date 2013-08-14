@@ -5,22 +5,19 @@
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.9.1
+Version:	0.9.2
 Release:	1
 License:	GPL v2
 Group:		Development/Tools
-Source0:	http://hjemli.net/git/cgit/snapshot/%{name}-%{version}.tar.bz2
-# Source0-md5:	78403e6a15a61bb06cb2b8447079139a
+Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
+# Source0-md5:	fe11018eff8d79caad112f4fac64b90f
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Source4:	%{name}-httpd.conf
 Patch0:		%{name}-system-git.patch
-Patch1:		%{name}-override-cflags.patch
-Patch2:		notes.patch
-Patch100:	git.patch
-URL:		http://hjemli.net/git/cgit
-BuildRequires:	git-core-devel >= 1.8.0
+URL:		http://git.zx2c4.com/cgit/about/
+BuildRequires:	git-core-devel >= 1.8.3
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
@@ -31,6 +28,8 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 %define		webappdir	%{_sysconfdir}/webapps/%{webapp}
 %define		appdir		%{_datadir}/%{webapp}
 %define		cgibindir	%{_prefix}/lib/cgi-bin
+
+%define         _noautoreqfiles %{_libdir}/cgit/filters
 
 %description
 Cgit is a CGI application implemented in C: it's basically (yet)
@@ -48,13 +47,12 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 
 %prep
 %setup -q
-%patch100 -p1
 %patch0 -p1
-%patch1 -p1
-%patch2 -p1
+cp  %{_includedir}/git-core/{Makefile,config.*} git
 
 %build
 %{__make} \
+	V=1 \
 	CC="%{__cc}" \
 	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
 	LDFLAGS="%{rpmldflags}" \
@@ -66,10 +64,12 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 %install
 rm -rf $RPM_BUILD_ROOT
 
+# The same CFLAGS as in %build  stage has to be passed to avoid
+# "new build flags" logic in Makefile
 %{__make} install \
 	DESTDIR=$RPM_BUILD_ROOT \
-	LIBDIR=%{_libdir} \
-	CGIT_CONFIG="%{webappdir}/%{webapp.conf}" \
+	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
+	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_DATA_PATH="%{appdir}" \
 	CGIT_SCRIPT_PATH="%{cgibindir}" \
 	%{?with_verbose:V=1}
@@ -112,5 +112,8 @@ rm -rf $RPM_BUILD_ROOT
 %{appdir}
 %dir %{_prefix}/lib/cgit
 %dir %{_prefix}/lib/cgit/filters
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/about-formatting.sh
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
+%attr(755,root,root) %{_prefix}/lib/cgit/filters//syntax-highlighting.py
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh
+%{_prefix}/lib/cgit/filters/html-converters
