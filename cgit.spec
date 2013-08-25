@@ -6,7 +6,7 @@ Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
 Version:	0.9.2
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
