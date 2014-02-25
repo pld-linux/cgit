@@ -1,23 +1,18 @@
-#
-# Conditional build
-%bcond_with	verbose		# verbose build (V=1)
-#
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.9.2
-Release:	2
+Version:	0.10
+Release:	1
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
-# Source0-md5:	fe11018eff8d79caad112f4fac64b90f
+# Source0-md5:	19944c17ecea1b1d1944718ce8ce6b61
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
-Source4:	%{name}-httpd.conf
 Patch0:		%{name}-system-git.patch
 URL:		http://git.zx2c4.com/cgit/about/
-BuildRequires:	git-core-devel >= 1.8.3
+BuildRequires:	git-core-devel >= 1.8.5
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
@@ -58,8 +53,7 @@ cp  %{_includedir}/git-core/{Makefile,config.*} git
 	LDFLAGS="%{rpmldflags}" \
 	LIBDIR=%{_libdir} \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
-	CGIT_SCRIPT_PATH="%{cgibindir}" \
-	%{?with_verbose:V=1}
+	CGIT_SCRIPT_PATH="%{cgibindir}"
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -67,12 +61,13 @@ rm -rf $RPM_BUILD_ROOT
 # The same CFLAGS as in %build  stage has to be passed to avoid
 # "new build flags" logic in Makefile
 %{__make} install \
+	V=1 \
 	DESTDIR=$RPM_BUILD_ROOT \
+	prefix=%{_prefix} \
 	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_DATA_PATH="%{appdir}" \
-	CGIT_SCRIPT_PATH="%{cgibindir}" \
-	%{?with_verbose:V=1}
+	CGIT_SCRIPT_PATH="%{cgibindir}"
 
 # cache
 install -d $RPM_BUILD_ROOT/var/cache/cgit
@@ -82,7 +77,7 @@ install -d $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE1} $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE2} $RPM_BUILD_ROOT%{webappdir}
 install %{SOURCE3} $RPM_BUILD_ROOT%{webappdir}/apache.conf
-install %{SOURCE4} $RPM_BUILD_ROOT%{webappdir}/httpd.conf
+install %{SOURCE3} $RPM_BUILD_ROOT%{webappdir}/httpd.conf
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -114,6 +109,9 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_prefix}/lib/cgit/filters
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/about-formatting.sh
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
-%attr(755,root,root) %{_prefix}/lib/cgit/filters//syntax-highlighting.py
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.lua
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.py
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/simple-authentication.lua
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.py
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh
 %{_prefix}/lib/cgit/filters/html-converters

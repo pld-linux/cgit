@@ -1,12 +1,12 @@
-diff --git a/cgit.mk b/cgit.mk
-index 8af0041..35beb03 100644
---- a/cgit.mk
-+++ b/cgit.mk
-@@ -87,5 +87,6 @@ $(CGIT_PREFIX)CGIT-CFLAGS: FORCE
+diff -uNr cgit-0.10.old/cgit.mk cgit-0.10/cgit.mk
+--- cgit-0.10.old/cgit.mk	2014-01-17 16:09:16.000000000 +0100
++++ cgit-0.10/cgit.mk	2014-02-25 15:22:09.208586612 +0100
+@@ -130,6 +130,7 @@
  $(CGIT_OBJS): %.o: %.c GIT-CFLAGS $(CGIT_PREFIX)CGIT-CFLAGS $(missing_dep_dirs)
  	$(QUIET_CC)$(CC) -o $*.o -c $(dep_args) $(ALL_CFLAGS) $(EXTRA_CPPFLAGS) $(CGIT_CFLAGS) $<
  
 -$(CGIT_PREFIX)cgit: $(CGIT_OBJS) GIT-LDFLAGS $(GITLIBS)
 +LIBS = -lgit -lgit_xdiff $(EXTLIBS)
 +$(CGIT_PREFIX)cgit: $(CGIT_OBJS) GIT-LDFLAGS
- 	$(QUIET_LINK)$(CC) $(ALL_CFLAGS) -o $@ $(ALL_LDFLAGS) $(filter %.o,$^) $(LIBS)
+ 	@echo 1>&1 "    * $(LUA_MESSAGE)"
+ 	$(QUIET_LINK)$(CC) $(ALL_CFLAGS) -o $@ $(ALL_LDFLAGS) $(filter %.o,$^) $(LIBS) $(CGIT_LIBS)
