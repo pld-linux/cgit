@@ -2,7 +2,7 @@ Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
 Version:	0.10
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
@@ -11,12 +11,13 @@ Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Patch0:		%{name}-system-git.patch
+Patch1:		%{name}-lua.patch
 URL:		http://git.zx2c4.com/cgit/about/
 BuildRequires:	git-core-devel >= 1.8.5
+BuildRequires:	lua-devel >= 5.0
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
-Conflicts:	apache-base < 2.4.0-1
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %define		webapp		cgit
@@ -43,6 +44,7 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 %prep
 %setup -q
 %patch0 -p1
+%patch1 -p1
 cp  %{_includedir}/git-core/{Makefile,config.*} git
 
 %build
@@ -109,9 +111,16 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_prefix}/lib/cgit/filters
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/about-formatting.sh
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
-%attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.lua
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.py
-%attr(755,root,root) %{_prefix}/lib/cgit/filters/simple-authentication.lua
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/simple-authentication.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.py
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh
-%{_prefix}/lib/cgit/filters/html-converters
+%dir %{_prefix}/lib/cgit/filters/html-converters
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/man2html
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/md2html
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/rst2html
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/txt2html
+%dir %{_prefix}/lib/cgit/filters/html-converters/resources
+%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/resources/markdown.pl
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/html-converters/resources/rst-template.txt
