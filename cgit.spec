@@ -1,19 +1,19 @@
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.10
-Release:	2
+Version:	0.10.1
+Release:	1
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
-# Source0-md5:	19944c17ecea1b1d1944718ce8ce6b61
+# Source0-md5:	060ef0aa95ebda6ea7daf823214bc4d0
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Patch0:		%{name}-system-git.patch
 Patch1:		%{name}-lua.patch
 URL:		http://git.zx2c4.com/cgit/about/
-BuildRequires:	git-core-devel >= 1.8.5
+BuildRequires:	git-core-devel >= 1.9.0
 BuildRequires:	lua-devel >= 5.0
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
