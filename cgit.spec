@@ -11,10 +11,9 @@ Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Patch0:		%{name}-system-git.patch
-Patch1:		%{name}-lua.patch
 URL:		http://git.zx2c4.com/cgit/about/
 BuildRequires:	git-core-devel >= 1.9.0
-BuildRequires:	lua-devel >= 5.0
+BuildRequires:	lua52-devel
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
@@ -44,7 +43,6 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 %prep
 %setup -q
 %patch0 -p1
-%patch1 -p1
 cp  %{_includedir}/git-core/{Makefile,config.*} git
 
 %build
@@ -54,6 +52,7 @@ cp  %{_includedir}/git-core/{Makefile,config.*} git
 	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
 	LDFLAGS="%{rpmldflags}" \
 	LIBDIR=%{_libdir} \
+	LUA_PKGCONFIG=lua5.2 \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_SCRIPT_PATH="%{cgibindir}"
 
