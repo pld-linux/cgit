@@ -1,18 +1,19 @@
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.10.1
+Version:	0.10.2
 Release:	1
 License:	GPL v2
 Group:		Development/Tools
 Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
-# Source0-md5:	060ef0aa95ebda6ea7daf823214bc4d0
+# Source0-md5:	6682d597f6e3e76645a254c7be537bd3
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
 Patch0:		%{name}-system-git.patch
+Patch1:		%{name}-git-2.0.3.patch
 URL:		http://git.zx2c4.com/cgit/about/
-BuildRequires:	git-core-devel >= 1.9.0
+BuildRequires:	git-core-devel >= 2.0.3
 BuildRequires:	lua52-devel
 BuildRequires:	openssl-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
@@ -43,6 +44,7 @@ HTML zapisany jest na dysku dla kolejnych żądań.
 %prep
 %setup -q
 %patch0 -p1
+%patch1 -p1
 cp  %{_includedir}/git-core/{Makefile,config.*} git
 
 %build
@@ -112,6 +114,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
 %attr(655,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.py
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/email-libravatar.lua
 %attr(655,root,root) %{_prefix}/lib/cgit/filters/simple-authentication.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.py
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh
