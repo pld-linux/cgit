@@ -1,21 +1,26 @@
 Summary:	cgit - a fast webinterface to git
 Summary(pl.UTF-8):	cgit - szybki interfejs WWW do gita
 Name:		cgit
-Version:	0.10.2
-Release:	2
+Version:	1.3.1
+%define		git_ver	2.54.0
+Release:	1
 License:	GPL v2
 Group:		Development/Tools
-Source0:	http://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
-# Source0-md5:	6682d597f6e3e76645a254c7be537bd3
+Source0:	https://git.zx2c4.com/cgit/snapshot/%{name}-%{version}.tar.xz
+# Source0-md5:	a72a9c1531b3b054f94f92c71d77ba6f
 Source1:	%{name}.conf
 Source2:	%{name}-repo.conf
 Source3:	%{name}-apache.conf
-Patch0:		%{name}-system-git.patch
-Patch1:		%{name}-git-2.0.3.patch
-URL:		http://git.zx2c4.com/cgit/about/
-BuildRequires:	git-core-devel >= 2.0.3
+Source4:	https://www.kernel.org/pub/software/scm/git/git-%{git_ver}.tar.xz
+# Source4-md5:	eb1137f556bd67cb4cea974275e51297
+URL:		https://git.zx2c4.com/cgit/about/
+BuildRequires:	asciidoc
+BuildRequires:	curl-devel
+BuildRequires:	expat-devel
 BuildRequires:	lua52-devel
 BuildRequires:	openssl-devel
+BuildRequires:	xmlto
+BuildRequires:	zlib-devel
 BuildConflicts:	zlib-devel = 1.2.5-1
 Requires:	webapps
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
@@ -42,35 +47,42 @@ użyciem biblioteki. Aplikacja ta korzysta z cache - wygenerowany kod
 HTML zapisany jest na dysku dla kolejnych żądań.
 
 %prep
-%setup -q
-%patch -P0 -p1
-%patch -P1 -p1
-cp  %{_includedir}/git-core/{Makefile,config.*} git
+%setup -q -a4
+rmdir git
+mv git-%{git_ver} git
 
 %build
 %{__make} \
 	V=1 \
 	CC="%{__cc}" \
-	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
+	CFLAGS="%{rpmcflags} %{rpmcppflags}" \
 	LDFLAGS="%{rpmldflags}" \
-	LIBDIR=%{_libdir} \
 	LUA_PKGCONFIG=lua5.2 \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_SCRIPT_PATH="%{cgibindir}"
 
+%{__make} doc-man \
+	V=1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 
-# The same CFLAGS as in %build  stage has to be passed to avoid
+# The same CFLAGS as in %build stage has to be passed to avoid
 # "new build flags" logic in Makefile
-%{__make} install \
+%{__make} install install-man \
 	V=1 \
 	DESTDIR=$RPM_BUILD_ROOT \
 	prefix=%{_prefix} \
-	CFLAGS="%{rpmcflags} -I/usr/include/git-core" \
+	CFLAGS="%{rpmcflags} %{rpmcppflags}" \
 	CGIT_CONFIG="%{webappdir}/%{webapp}.conf" \
 	CGIT_DATA_PATH="%{appdir}" \
 	CGIT_SCRIPT_PATH="%{cgibindir}"
+
+# PLD shebang policy disallows /usr/bin/env python3
+%{__sed} -i -e '1s,#!/usr/bin/env python3,#!%{__python3},' \
+	$RPM_BUILD_ROOT%{_prefix}/lib/cgit/filters/email-gravatar.py \
+	$RPM_BUILD_ROOT%{_prefix}/lib/cgit/filters/syntax-highlighting.py \
+	$RPM_BUILD_ROOT%{_prefix}/lib/cgit/filters/html-converters/md2html
 
 # cache
 install -d $RPM_BUILD_ROOT/var/cache/cgit
@@ -114,7 +126,9 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/commit-links.sh
 %attr(655,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/email-gravatar.py
-%attr(655,root,root) %{_prefix}/lib/cgit/filters/email-libravatar.lua
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/file-authentication.lua
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/gentoo-ldap-authentication.lua
+%attr(655,root,root) %{_prefix}/lib/cgit/filters/owner-example.lua
 %attr(655,root,root) %{_prefix}/lib/cgit/filters/simple-authentication.lua
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.py
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/syntax-highlighting.sh
@@ -123,6 +137,4 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/md2html
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/rst2html
 %attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/txt2html
-%dir %{_prefix}/lib/cgit/filters/html-converters/resources
-%attr(755,root,root) %{_prefix}/lib/cgit/filters/html-converters/resources/markdown.pl
-%attr(655,root,root) %{_prefix}/lib/cgit/filters/html-converters/resources/rst-template.txt
+%{_mandir}/man5/cgitrc.5*
